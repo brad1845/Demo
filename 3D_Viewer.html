@@ -1,138 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>3D Viewer - Mobile Safe</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-      /* 左下移動按鈕 */
-      .control-btn {
-        position: fixed;
-        width: 50px;
-        height: 50px;
-        background: rgba(0,0,0,0.5);
-        color: white;
-        font-size: 20px;
-        border: none;
-        border-radius: 5px;
-        z-index: 999;
-      }
-      #btnW { bottom: 110px; left: 20px; }
-      #btnS { bottom: 20px; left: 20px; }
-      #btnA { bottom: 65px; left: -10px; }
-      #btnD { bottom: 65px; left: 50px; }
+<head>
+  <meta charset="UTF-8">
+  <title>3D Viewer - Adaptive Joystick & Single Hand Mode</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/jesstelford/aframe-virtualjoystick-controls/dist/aframe-virtualjoystick-controls.min.js"></script>
+  <style>
+    body { margin:0; overflow:hidden; }
 
-      /* 右下旋轉圓形按鈕 */
-      #rotateBtn {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: rgba(0,0,0,0.5);
-        color: white;
-        font-size: 24px;
-        border: none;
-        z-index: 999;
-      }
+    /* 手動 VR 按鈕 */
+    #enterVR {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 15px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      z-index: 999;
+      font-size: 16px;
+    }
 
-      /* 手動進入 VR 按鈕 */
-      #enterVR {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 10px 15px;
-        background: rgba(0,0,0,0.5);
-        color: white;
-        border: none;
-        border-radius: 5px;
-        z-index: 999;
-        font-size: 16px;
-      }
-    </style>
-  </head>
-  <body>
-    <!-- 左下移動按鈕 -->
-    <button class="control-btn" id="btnW">W</button>
-    <button class="control-btn" id="btnS">S</button>
-    <button class="control-btn" id="btnA">A</button>
-    <button class="control-btn" id="btnD">D</button>
+    /* 單手模式切換按鈕 */
+    #toggleMode {
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      padding: 8px 12px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      z-index: 999;
+      font-size: 14px;
+    }
 
-    <!-- 右下旋轉按鈕 -->
-    <button id="rotateBtn">⟳</button>
+    .joystick-container {
+      position: fixed;
+      bottom: 5%;
+      width: 15vw;
+      height: 15vw;
+      max-width: 120px;
+      max-height: 120px;
+      min-width: 60px;
+      min-height: 60px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 50%;
+      z-index: 998;
+    }
+    #leftJoystick { left: 5%; }
+    #rightJoystick { right: 5%; }
 
-    <!-- 右上手動 VR -->
-    <button id="enterVR">進入 VR</button>
+    .stick {
+      width: 40%;
+      height: 40%;
+      background: rgba(255,255,255,0.5);
+      border-radius: 50%;
+      position: absolute;
+      top: 30%;
+      left: 30%;
+      touch-action: none;
+      transition: top 0.2s ease, left 0.2s ease; /* 回彈動畫 */
+    }
+  </style>
+</head>
+<body>
 
-    <a-scene vr-mode-ui="enabled: false">
-      <!-- 相機，禁止 Magic Window 陀螺儀 -->
-      <a-entity id="camera" camera look-controls="magicWindowTrackingEnabled: false" position="0 1.6 3"></a-entity>
+<button id="enterVR">進入 VR</button>
+<button id="toggleMode">單手模式</button>
 
-      <!-- GLB 模型 -->
-      <a-assets>
-        <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
-      </a-assets>
-      <a-entity gltf-model="#livingroom" position="0 0 -3" scale="1 1 1"></a-entity>
+<div id="leftJoystick" class="joystick-container">
+  <div class="stick" id="leftStick"></div>
+</div>
+<div id="rightJoystick" class="joystick-container">
+  <div class="stick" id="rightStick"></div>
+</div>
 
-      <!-- 光源 -->
-      <a-light type="ambient" color="#ffffff"></a-light>
-      <a-light type="point" intensity="2" position="2 4 4"></a-light>
+<a-scene vr-mode-ui="enabled: false" embedded>
+  <a-entity id="camera" camera
+            look-controls="magicWindowTrackingEnabled: false; touchEnabled: false"
+            virtual-joystick-controls="
+              movementJoystick: #leftJoystick; 
+              rotationJoystick: #rightJoystick"
+            position="0 1.6 3">
+  </a-entity>
 
-      <!-- 天空 -->
-      <a-sky color="#ECECEC"></a-sky>
-    </a-scene>
+  <a-assets>
+    <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
+  </a-assets>
+  <a-entity gltf-model="#livingroom" position="0 0 -3" scale="1 1 1"></a-entity>
 
-    <script>
-      const camera = document.getElementById('camera');
-      const speed = 0.2;       // 移動距離
-      const rotateSpeed = 5;    // 旋轉角度
+  <a-light type="ambient" color="#ffffff"></a-light>
+  <a-light type="point" intensity="2" position="2 4 4"></a-light>
 
-      // 移動函數
-      function moveCamera(dx, dz) {
-        const pos = camera.getAttribute('position');
-        camera.setAttribute('position', {
-          x: pos.x + dx,
-          y: pos.y,
-          z: pos.z + dz
-        });
-      }
+  <a-sky color="#ECECEC"></a-sky>
+</a-scene>
 
-      // 旋轉函數
-      function rotateCamera(angle) {
-        const rot = camera.getAttribute('rotation');
-        camera.setAttribute('rotation', {
-          x: rot.x,
-          y: rot.y + angle,
-          z: rot.z
-        });
-      }
+<script>
+const scene = document.querySelector('a-scene');
+const camera = document.getElementById('camera');
+const leftJoystick = document.getElementById('leftJoystick');
+const rightJoystick = document.getElementById('rightJoystick');
 
-      // 綁定移動按鈕
-      document.getElementById('btnW').addEventListener('click', () => moveCamera(0, -speed));
-      document.getElementById('btnS').addEventListener('click', () => moveCamera(0, speed));
-      document.getElementById('btnA').addEventListener('click', () => moveCamera(-speed, 0));
-      document.getElementById('btnD').addEventListener('click', () => moveCamera(speed, 0));
+let singleHandMode = false;
 
-      // 旋轉按鈕長按
-      let rotateInterval;
-      const rotateBtn = document.getElementById('rotateBtn');
-      rotateBtn.addEventListener('mousedown', () => {
-        rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
-      });
-      rotateBtn.addEventListener('mouseup', () => clearInterval(rotateInterval));
-      rotateBtn.addEventListener('mouseleave', () => clearInterval(rotateInterval));
+// 進入 VR
+document.getElementById('enterVR').addEventListener('click', async () => {
+  try {
+    await scene.enterVR();
+  } catch(e) {
+    console.log("無法進入原生 VR，使用 Magic Window 模式");
+  }
+  camera.setAttribute('look-controls', 'magicWindowTrackingEnabled: true');
+});
 
-      // 手機觸控長按
-      rotateBtn.addEventListener('touchstart', () => {
-        rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
-      });
-      rotateBtn.addEventListener('touchend', () => clearInterval(rotateInterval));
+// 單手模式切換
+document.getElementById('toggleMode').addEventListener('click', () => {
+  singleHandMode = !singleHandMode;
+  if(singleHandMode){
+    rightJoystick.style.display = 'none';
+    camera.setAttribute('look-controls', 'touchEnabled: true');
+  } else {
+    rightJoystick.style.display = 'block';
+    camera.setAttribute('look-controls', 'touchEnabled: false');
+  }
+});
 
-      // 手動進入 VR 按鈕
-      document.getElementById('enterVR').addEventListener('click', () => {
-        document.querySelector('a-scene').enterVR();
-      });
-    </script>
-  </body>
+// 虛擬搖桿內圈回彈效果
+function setupStick(stickId) {
+  const stick = document.getElementById(stickId);
+  let container = stick.parentElement;
+  let active = false;
+  let startX, startY;
+  let maxRadius = container.offsetWidth/2 - stick.offsetWidth/2;
+
+  stick.addEventListener('touchstart', e => {
+    active = true;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    stick.style.transition = "none";
+  });
+
+  stick.addEventListener('touchmove', e => {
+    if (!active) return;
+    const touch = e.touches[0];
+    let dx = touch.clientX - startX;
+    let dy = touch.clientY - startY;
+    let distance = Math.hypot(dx, dy);
+    if (distance > maxRadius) {
+      let angle = Math.atan2(dy, dx);
+      dx = Math.cos(angle)*maxRadius;
+      dy = Math.sin(angle)*maxRadius;
+    }
+    stick.style.left = 30 + dx + "px";
+    stick.style.top = 30 + dy + "px";
+  });
+
+  stick.addEventListener('touchend', e => {
+    active = false;
+    stick.style.transition = "top 0.2s ease, left 0.2s ease";
+    stick.style.left = "30%";
+    stick.style.top = "30%";
+  });
+}
+
+setupStick('leftStick');
+setupStick('rightStick');
+</script>
+
+</body>
 </html>
