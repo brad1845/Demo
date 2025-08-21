@@ -1,27 +1,70 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>我的3D展示</title>
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-</head>
-<body>
-  <a-scene>
-     <!-- 資產定義 -->
-     <a-assets>
-       <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
-     </a-assets>
-    <!-- 載入你的 GLB 模型 -->
-    <a-entity gltf-model="#livingroom" position="0 0 -3" scale="0.5 0.5 0.5"></a-entity>
-   
-    <a-entity camera look-controls position="0 1.6 0"></a-entity>
-    
-    <!-- 環境光 -->
-    <a-light type="ambient" color="#ffffff"></a-light>
-    <a-light type="point" intensity="2" position="2 4 4"></a-light>
-    
-    <!-- 天空背景 -->
-    <a-sky color="#ECECEC"></a-sky>
-  </a-scene>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>3D Viewer with WSAD Buttons</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+      /* 畫面上的按鈕樣式 */
+      .control-btn {
+        position: fixed;
+        width: 50px;
+        height: 50px;
+        background: rgba(0,0,0,0.5);
+        color: white;
+        font-size: 20px;
+        border: none;
+        border-radius: 5px;
+        z-index: 999;
+      }
+      #btnW { top: 20px; left: 50%; transform: translateX(-50%); }
+      #btnS { top: 80px; left: 50%; transform: translateX(-50%); }
+      #btnA { top: 50px; left: 20px; }
+      #btnD { top: 50px; right: 20px; }
+    </style>
+  </head>
+  <body>
+    <!-- 按鈕 -->
+    <button class="control-btn" id="btnW">W</button>
+    <button class="control-btn" id="btnS">S</button>
+    <button class="control-btn" id="btnA">A</button>
+    <button class="control-btn" id="btnD">D</button>
+
+    <a-scene>
+      <!-- 相機 -->
+      <a-entity id="camera" camera look-controls position="0 1.6 3"></a-entity>
+
+      <!-- 模型範例 (請換成你的 GLB URL) -->
+      <a-assets>
+        <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
+      </a-assets>
+      <a-entity gltf-model="#livingroom" position="0 0 -3" scale="0.5 0.5 0.5"></a-entity>
+
+      <!-- 光源 -->
+      <a-light type="ambient" color="#ffffff"></a-light>
+      <a-light type="point" intensity="2" position="2 4 4"></a-light>
+
+      <!-- 天空 -->
+      <a-sky color="#ECECEC"></a-sky>
+    </a-scene>
+
+    <script>
+      const camera = document.getElementById('camera');
+      const speed = 0.2; // 每次移動距離
+
+      function moveCamera(dx, dz) {
+        const pos = camera.getAttribute('position');
+        camera.setAttribute('position', {
+          x: pos.x + dx,
+          y: pos.y,
+          z: pos.z + dz
+        });
+      }
+
+      document.getElementById('btnW').addEventListener('click', () => moveCamera(0, -speed));
+      document.getElementById('btnS').addEventListener('click', () => moveCamera(0, speed));
+      document.getElementById('btnA').addEventListener('click', () => moveCamera(-speed, 0));
+      document.getElementById('btnD').addEventListener('click', () => moveCamera(speed, 0));
+    </script>
+  </body>
 </html>
