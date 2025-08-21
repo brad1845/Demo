@@ -1,74 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Viewer - Adaptive Controls</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/jesstelford/aframe-virtualjoystick-controls/dist/aframe-virtualjoystick-controls.min.js"></script>
+  <style>
+    body { margin:0; overflow:hidden; }
+    button { position: fixed; background: rgba(0,0,0,0.5); color:white; border:none; border-radius:5px; z-index:999; }
+    #enterVR { top:20px; right:20px; padding:10px 15px; font-size:16px; }
+    #toggleMode { top:70px; right:20px; padding:8px 12px; font-size:14px; }
+    #keyboardControls { position: fixed; bottom:5%; left:5%; z-index:998; font-size:16px; color:white; user-select:none; }
+    .joystick-container { position: fixed; bottom:5%; width:15vw; height:15vw; max-width:120px; max-height:120px; min-width:60px; min-height:60px; background: rgba(0,0,0,0.3); border-radius:50%; z-index:998; }
+    #leftJoystick { left:5%; }
+    #rightJoystick { right:5%; }
+    .stick { width:40%; height:40%; background: rgba(255,255,255,0.5); border-radius:50%; position:absolute; top:30%; left:30%; touch-action:none; transition: top 0.2s ease, left 0.2s ease; }
+  </style>
+</head>
+<body>
+
+<button id="enterVR">進入 VR</button>
+<button id="toggleMode">單手模式</button>
+<div id="keyboardControls">WSAD 移動</div>
+
+<div id="leftJoystick" class="joystick-container"><div class="stick" id="leftStick"></div></div>
+<div id="rightJoystick" class="joystick-container"><div class="stick" id="rightStick"></div></div>
+
+<a-scene vr-mode-ui="enabled: false" embedded>
+  <a-entity id="camera" camera look-controls="magicWindowTrackingEnabled: false; touchEnabled: false" position="0 1.6 3"></a-entity>
+
+  <a-assets>
+    <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
+  </a-assets>
+  <a-entity gltf-model="#livingroom" position="0 0 -3" scale="1 1 1"></a-entity>
+
+  <a-light type="ambient" color="#ffffff"></a-light>
+  <a-light type="point" intensity="2" position="2 4 4"></a-light>
+  <a-sky color="#ECECEC"></a-sky>
+</a-scene>
+
+<script>
+const scene = document.querySelector('a-scene');
+const camera = document.getElementById('camera');
+const leftJoystick = document.getElementById('leftJoystick');
+const rightJoystick = document.getElementById('rightJoystick');
+const keyboardControls = document.getElementById('keyboardControls');
+let singleHandMode = false;
+
+// 判斷裝置
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+if(!isMobile){
+  leftJoystick.style.display='none';
+  rightJoystick.style.display='none';
+  keyboardControls.style.display='block';
+} else {
+  keyboardControls.style.display='none';
+}
+
+// 進入 VR
+document.getElementById('enterVR').addEventListener('click', async () => {
+  try { await scene.enterVR(); } 
+  catch(e){ console.log("無法進入原生 VR，使用 Magic Window 模式"); }
+  camera.setAttribute('look-controls', 'magicWindowTrackingEnabled: true');
+});
+
 // 單手模式切換
 document.getElementById('toggleMode').addEventListener('click', () => {
   if(!isMobile) return;
   singleHandMode = !singleHandMode;
   if(singleHandMode){
-    leftJoystick.style.display = 'none';  // 左搖桿隱藏
-    rightJoystick.style.display = 'block'; // 右搖桿用於移動
-    camera.setAttribute('look-controls', 'touchEnabled: true'); // 滑動旋轉
-    rightJoystick.setAttribute('data-mode', 'move'); // 標註右搖桿為移動
+    leftJoystick.style.display='none';
+    rightJoystick.style.display='block';
+    rightJoystick.setAttribute('data-mode','move');
+    camera.setAttribute('look-controls','touchEnabled:true');
   } else {
-    leftJoystick.style.display = 'block';
-    rightJoystick.style.display = 'block';
-    camera.setAttribute('look-controls', 'touchEnabled: false');
-    rightJoystick.setAttribute('data-mode', 'rotate'); // 右搖桿為旋轉
+    leftJoystick.style.display='block';
+    rightJoystick.style.display='block';
+    rightJoystick.setAttribute('data-mode','rotate');
+    leftJoystick.setAttribute('data-mode','move');
+    camera.setAttribute('look-controls','touchEnabled:false');
   }
 });
 
-// 虛擬搖桿內圈回彈 & 功能
+// 搖桿邏輯
 function setupStick(stickId){
   const stick = document.getElementById(stickId);
   const container = stick.parentElement;
-  let active = false;
-  let startX, startY;
+  let active=false, startX, startY;
   let maxRadius = container.offsetWidth/2 - stick.offsetWidth/2;
 
   stick.addEventListener('touchstart', e=>{
-    active = true;
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-    stick.style.transition = "none";
+    active=true;
+    const touch=e.touches[0]; startX=touch.clientX; startY=touch.clientY;
+    stick.style.transition="none";
   });
 
   stick.addEventListener('touchmove', e=>{
     if(!active) return;
-    const touch = e.touches[0];
-    let dx = touch.clientX - startX;
-    let dy = touch.clientY - startY;
-    let distance = Math.hypot(dx, dy);
+    const touch=e.touches[0];
+    let dx=touch.clientX-startX, dy=touch.clientY-startY;
+    let distance=Math.hypot(dx,dy);
     if(distance>maxRadius){
-      let angle = Math.atan2(dy, dx);
-      dx = Math.cos(angle)*maxRadius;
-      dy = Math.sin(angle)*maxRadius;
+      let angle=Math.atan2(dy,dx);
+      dx=Math.cos(angle)*maxRadius; dy=Math.sin(angle)*maxRadius;
     }
-    stick.style.left = 30+dx+"px";
-    stick.style.top = 30+dy+"px";
+    stick.style.left=30+dx+"px"; stick.style.top=30+dy+"px";
 
-    // 控制移動或旋轉
-    let mode = stick.parentElement.getAttribute('data-mode');
-    let moveSpeed = 0.05;
+    let mode=stick.parentElement.getAttribute('data-mode');
+    let moveSpeed=0.05;
     if(mode==='move'){
-      // 沿相機方向移動
-      let dir = new THREE.Vector3();
+      let dir=new THREE.Vector3();
       camera.object3D.getWorldDirection(dir);
-      dir.y = 0; dir.normalize();
-      let right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
+      dir.y=0; dir.normalize();
+      let right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
       camera.object3D.position.add(dir.clone().multiplyScalar(-dy*moveSpeed));
       camera.object3D.position.add(right.clone().multiplyScalar(dx*moveSpeed));
     } else if(mode==='rotate'){
-      // 旋轉相機
-      let rotationSpeed = 0.1;
+      let rotationSpeed=0.1;
       camera.object3D.rotation.y -= dx*rotationSpeed*0.01;
       camera.object3D.rotation.x -= dy*rotationSpeed*0.01;
     }
   });
 
   stick.addEventListener('touchend', e=>{
-    active = false;
-    stick.style.transition = "top 0.2s ease, left 0.2s ease";
-    stick.style.left = "30%";
-    stick.style.top = "30%";
+    active=false;
+    stick.style.transition="top 0.2s ease,left 0.2s ease";
+    stick.style.left="30%"; stick.style.top="30%";
   });
 }
 
@@ -79,3 +137,27 @@ if(isMobile){
   setupStick('leftStick');
   setupStick('rightStick');
 }
+
+// 電腦 WSAD 移動
+if(!isMobile){
+  const moveSpeed=0.1;
+  const keys={w:false,a:false,s:false,d:false};
+  document.addEventListener('keydown', e=>{ if(keys.hasOwnProperty(e.key)) keys[e.key]=true; });
+  document.addEventListener('keyup', e=>{ if(keys.hasOwnProperty(e.key)) keys[e.key]=false; });
+
+  function moveLoop(){
+    let dir=new THREE.Vector3();
+    camera.object3D.getWorldDirection(dir);
+    dir.y=0; dir.normalize();
+    let right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
+    if(keys.w) camera.object3D.position.add(dir.clone().multiplyScalar(moveSpeed));
+    if(keys.s) camera.object3D.position.add(dir.clone().multiplyScalar(-moveSpeed));
+    if(keys.a) camera.object3D.position.add(right.clone().multiplyScalar(-moveSpeed));
+    if(keys.d) camera.object3D.position.add(right.clone().multiplyScalar(moveSpeed));
+    requestAnimationFrame(moveLoop);
+  }
+  moveLoop();
+}
+</script>
+</body>
+</html>
