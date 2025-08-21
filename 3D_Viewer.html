@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>3D Viewer with WSAD Buttons</title>
+    <title>3D Viewer with Buttons</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
-      /* 畫面上的按鈕樣式 */
+      /* W/A/S/D 按鈕，左下角排列 */
       .control-btn {
         position: fixed;
         width: 50px;
@@ -17,28 +17,46 @@
         border-radius: 5px;
         z-index: 999;
       }
-      #btnW { top: 20px; left: 50%; transform: translateX(-50%); }
-      #btnS { top: 80px; left: 50%; transform: translateX(-50%); }
-      #btnA { top: 50px; left: 20px; }
-      #btnD { top: 50px; right: 20px; }
+      #btnW { bottom: 110px; left: 20px; }
+      #btnS { bottom: 20px; left: 20px; }
+      #btnA { bottom: 65px; left: -10px; }   /* 偏左排列 */
+      #btnD { bottom: 65px; left: 50px; }    /* 偏右排列 */
+
+      /* 右下旋轉圓形按鈕 */
+      #rotateBtn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.5);
+        color: white;
+        font-size: 24px;
+        border: none;
+        z-index: 999;
+      }
     </style>
   </head>
   <body>
-    <!-- 按鈕 -->
+    <!-- 左下移動按鈕 -->
     <button class="control-btn" id="btnW">W</button>
     <button class="control-btn" id="btnS">S</button>
     <button class="control-btn" id="btnA">A</button>
     <button class="control-btn" id="btnD">D</button>
 
+    <!-- 右下旋轉按鈕 -->
+    <button id="rotateBtn">⟳</button>
+
     <a-scene>
       <!-- 相機 -->
       <a-entity id="camera" camera look-controls position="0 1.6 3"></a-entity>
 
-      <!-- 模型範例 (請換成你的 GLB URL) -->
+      <!-- GLB 模型 -->
       <a-assets>
         <a-asset-item id="livingroom" src="https://raw.githubusercontent.com/brad1845/Demo/main/living_room_indoor.glb"></a-asset-item>
       </a-assets>
-      <a-entity gltf-model="#livingroom" position="0 0 -3" scale="0.5 0.5 0.5"></a-entity>
+      <a-entity gltf-model="#livingroom" position="0 0 -3" scale="1 1 1"></a-entity>
 
       <!-- 光源 -->
       <a-light type="ambient" color="#ffffff"></a-light>
@@ -50,8 +68,10 @@
 
     <script>
       const camera = document.getElementById('camera');
-      const speed = 0.2; // 每次移動距離
+      const speed = 0.2;  // 移動距離
+      const rotateSpeed = 5; // 旋轉角度
 
+      // 移動函數
       function moveCamera(dx, dz) {
         const pos = camera.getAttribute('position');
         camera.setAttribute('position', {
@@ -61,10 +81,37 @@
         });
       }
 
+      // 旋轉函數 (Y 軸)
+      function rotateCamera(angle) {
+        const rot = camera.getAttribute('rotation');
+        camera.setAttribute('rotation', {
+          x: rot.x,
+          y: rot.y + angle,
+          z: rot.z
+        });
+      }
+
+      // 綁定移動按鈕
       document.getElementById('btnW').addEventListener('click', () => moveCamera(0, -speed));
       document.getElementById('btnS').addEventListener('click', () => moveCamera(0, speed));
       document.getElementById('btnA').addEventListener('click', () => moveCamera(-speed, 0));
       document.getElementById('btnD').addEventListener('click', () => moveCamera(speed, 0));
+
+      // 旋轉按鈕長按事件
+      let rotateInterval;
+      const rotateBtn = document.getElementById('rotateBtn');
+
+      rotateBtn.addEventListener('mousedown', () => {
+        rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
+      });
+      rotateBtn.addEventListener('mouseup', () => clearInterval(rotateInterval));
+      rotateBtn.addEventListener('mouseleave', () => clearInterval(rotateInterval));
+
+      // 手機觸控長按
+      rotateBtn.addEventListener('touchstart', () => {
+        rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
+      });
+      rotateBtn.addEventListener('touchend', () => clearInterval(rotateInterval));
     </script>
   </body>
 </html>
