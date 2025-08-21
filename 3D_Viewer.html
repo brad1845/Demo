@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>3D Viewer with Buttons</title>
+    <title>3D Viewer with Buttons and Manual VR</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
       /* W/A/S/D 按鈕，左下角排列 */
@@ -19,8 +19,8 @@
       }
       #btnW { bottom: 110px; left: 20px; }
       #btnS { bottom: 20px; left: 20px; }
-      #btnA { bottom: 65px; left: -10px; }   /* 偏左排列 */
-      #btnD { bottom: 65px; left: 50px; }    /* 偏右排列 */
+      #btnA { bottom: 65px; left: -10px; }
+      #btnD { bottom: 65px; left: 50px; }
 
       /* 右下旋轉圓形按鈕 */
       #rotateBtn {
@@ -36,6 +36,20 @@
         border: none;
         z-index: 999;
       }
+
+      /* VR 手動按鈕 */
+      #enterVR {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 15px;
+        background: rgba(0,0,0,0.5);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        z-index: 999;
+        font-size: 16px;
+      }
     </style>
   </head>
   <body>
@@ -48,7 +62,10 @@
     <!-- 右下旋轉按鈕 -->
     <button id="rotateBtn">⟳</button>
 
-    <a-scene>
+    <!-- VR 手動按鈕 -->
+    <button id="enterVR">進入 VR</button>
+
+    <a-scene vr-mode-ui="enabled: false">
       <!-- 相機 -->
       <a-entity id="camera" camera look-controls position="0 1.6 3"></a-entity>
 
@@ -68,8 +85,8 @@
 
     <script>
       const camera = document.getElementById('camera');
-      const speed = 0.2;  // 移動距離
-      const rotateSpeed = 5; // 旋轉角度
+      const speed = 0.2;       // 移動距離
+      const rotateSpeed = 5;    // 旋轉角度
 
       // 移動函數
       function moveCamera(dx, dz) {
@@ -81,7 +98,7 @@
         });
       }
 
-      // 旋轉函數 (Y 軸)
+      // 旋轉函數
       function rotateCamera(angle) {
         const rot = camera.getAttribute('rotation');
         camera.setAttribute('rotation', {
@@ -97,10 +114,9 @@
       document.getElementById('btnA').addEventListener('click', () => moveCamera(-speed, 0));
       document.getElementById('btnD').addEventListener('click', () => moveCamera(speed, 0));
 
-      // 旋轉按鈕長按事件
+      // 旋轉按鈕長按
       let rotateInterval;
       const rotateBtn = document.getElementById('rotateBtn');
-
       rotateBtn.addEventListener('mousedown', () => {
         rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
       });
@@ -112,6 +128,11 @@
         rotateInterval = setInterval(() => rotateCamera(rotateSpeed), 50);
       });
       rotateBtn.addEventListener('touchend', () => clearInterval(rotateInterval));
+
+      // 手動進入 VR 按鈕
+      document.getElementById('enterVR').addEventListener('click', () => {
+        document.querySelector('a-scene').enterVR();
+      });
     </script>
   </body>
 </html>
