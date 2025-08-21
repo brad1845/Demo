@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>3D Viewer with Buttons and Manual VR</title>
+    <title>3D Viewer - Mobile Safe</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
-      /* W/A/S/D 按鈕，左下角排列 */
+      /* 左下移動按鈕 */
       .control-btn {
         position: fixed;
         width: 50px;
@@ -37,7 +37,7 @@
         z-index: 999;
       }
 
-      /* VR 手動按鈕 */
+      /* 手動進入 VR 按鈕 */
       #enterVR {
         position: fixed;
         top: 20px;
@@ -62,12 +62,12 @@
     <!-- 右下旋轉按鈕 -->
     <button id="rotateBtn">⟳</button>
 
-    <!-- VR 手動按鈕 -->
+    <!-- 右上手動 VR -->
     <button id="enterVR">進入 VR</button>
 
     <a-scene vr-mode-ui="enabled: false">
-      <!-- 相機 -->
-      <a-entity id="camera" camera look-controls position="0 1.6 3"></a-entity>
+      <!-- 相機，禁止 Magic Window 陀螺儀 -->
+      <a-entity id="camera" camera look-controls="magicWindowTrackingEnabled: false" position="0 1.6 3"></a-entity>
 
       <!-- GLB 模型 -->
       <a-assets>
