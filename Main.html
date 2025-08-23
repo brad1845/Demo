@@ -251,6 +251,11 @@
         this.acceleration = 0.02;
         this.friction = 0.9;
         
+        // 正交尺寸控制
+        this.targetOrthoSize = 5;
+        this.orthoSizeVelocity = 0;
+        this.orthoSizeSpeed = 0.15;
+        
         // 滑鼠狀態
         this.isMouseDown = false;
         this.isTouchDown = false;
@@ -334,7 +339,7 @@
           case 'KeyW':
             if (this.isOrtho) {
               e.preventDefault();
-              this.adjustOrthoSize(0.9);
+              this.keys.orthoShrink = true;
             } else {
               this.keys.forward = true;
             }
@@ -342,7 +347,7 @@
           case 'KeyS':
             if (this.isOrtho) {
               e.preventDefault();
-              this.adjustOrthoSize(1.1);
+              this.keys.orthoGrow = true;
             } else {
               this.keys.backward = true;
             }
@@ -367,12 +372,16 @@
       handleKeyUp(e) {
         switch(e.code) {
           case 'KeyW':
-            if (!this.isOrtho) {
+            if (this.isOrtho) {
+              this.keys.orthoShrink = false;
+            } else {
               this.keys.forward = false;
             }
             break;
           case 'KeyS':
-            if (!this.isOrtho) {
+            if (this.isOrtho) {
+              this.keys.orthoGrow = false;
+            } else {
               this.keys.backward = false;
             }
             break;
@@ -411,6 +420,9 @@
         
         // 更新移動
         this.updateMovement();
+        
+        // 更新正交尺寸（如果在正交模式）
+        this.updateOrthoSize();
         
         // 更新性能信息
         this.updatePerformanceInfo();
@@ -543,6 +555,7 @@
         
         // 重置速度避免切換後的移動問題
         this.velocity.set(0, 0, 0);
+        this.orthoSizeVelocity = 0;
         
         this.label.textContent = "正交模式";
         this.isOrtho = true;
@@ -626,20 +639,41 @@
         }
       }
       
-      adjustOrthoSize(factor) {
+      updateOrthoSize() {
         if (!this.isOrtho || !this.orthoCam) return;
         
-        this.orthoSize *= factor;
-        this.orthoSize = Math.max(0.5, Math.min(50, this.orthoSize));
+        // 計算目標尺寸變化
+        let targetSizeChange = 0;
+        if (this.keys.orthoShrink) targetSizeChange -= this.orthoSizeSpeed;
+        if (this.keys.orthoGrow) targetSizeChange += this.orthoSizeSpeed;
         
-        const aspect = window.innerWidth / window.innerHeight;
-        this.orthoCam.left = -this.orthoSize * aspect / 2;
-        this.orthoCam.right = this.orthoSize * aspect / 2;
-        this.orthoCam.top = this.orthoSize / 2;
-        this.orthoCam.bottom = -this.orthoSize / 2;
-        this.orthoCam.updateProjectionMatrix();
+        // 平滑變化
+        this.orthoSizeVelocity = THREE.MathUtils.lerp(this.orthoSizeVelocity, targetSizeChange, 0.3);
         
-        this.updateCameraInfo();
+        // 應用摩擦力
+        if (targetSizeChange === 0) {
+          this.orthoSizeVelocity *= 0.9;
+        }
+        
+        // 如果變化很小就停止
+        if (Math.abs(this.orthoSizeVelocity) < 0.001) {
+          this.orthoSizeVelocity = 0;
+        }
+        
+        // 應用尺寸變化
+        if (this.orthoSizeVelocity !== 0) {
+          this.orthoSize += this.orthoSizeVelocity;
+          this.orthoSize = Math.max(0.5, Math.min(50, this.orthoSize));
+          
+          const aspect = window.innerWidth / window.innerHeight;
+          this.orthoCam.left = -this.orthoSize * aspect / 2;
+          this.orthoCam.right = this.orthoSize * aspect / 2;
+          this.orthoCam.top = this.orthoSize / 2;
+          this.orthoCam.bottom = -this.orthoSize / 2;
+          this.orthoCam.updateProjectionMatrix();
+          
+          this.updateCameraInfo();
+        }
       }
       
       updateCameraInfo() {
