@@ -577,11 +577,51 @@
       resetCamera() {
         const currentCamera = this.camEntity.getObject3D("camera");
         if (currentCamera) {
+          // 暫時禁用look-controls以避免衝突
+          this.camEntity.setAttribute('look-controls', 'enabled', false);
+          
+          // 重置到初始位置和旋轉
           currentCamera.position.copy(this.defaultPosition);
           currentCamera.rotation.copy(this.defaultRotation);
           currentCamera.quaternion.setFromEuler(this.defaultRotation);
           currentCamera.updateMatrix();
           currentCamera.updateMatrixWorld(true);
+          
+          // 同步A-Frame實體的狀態
+          this.camEntity.object3D.position.copy(currentCamera.position);
+          this.camEntity.object3D.rotation.copy(currentCamera.rotation);
+          this.camEntity.object3D.quaternion.copy(currentCamera.quaternion);
+          this.camEntity.object3D.updateMatrix();
+          this.camEntity.object3D.updateMatrixWorld(true);
+          
+          // 同步到A-Frame的attribute系統
+          this.camEntity.setAttribute('position', {
+            x: this.defaultPosition.x,
+            y: this.defaultPosition.y,
+            z: this.defaultPosition.z
+          });
+          this.camEntity.setAttribute('rotation', {
+            x: THREE.MathUtils.radToDeg(this.defaultRotation.x),
+            y: THREE.MathUtils.radToDeg(this.defaultRotation.y),
+            z: THREE.MathUtils.radToDeg(this.defaultRotation.z)
+          });
+          
+          // 重置look-controls的內部狀態
+          const lookControls = this.camEntity.components['look-controls'];
+          if (lookControls) {
+            lookControls.pitchObject.rotation.x = 0;
+            lookControls.yawObject.rotation.y = 0;
+            lookControls.yawObject.position.copy(this.defaultPosition);
+          }
+          
+          // 重置速度
+          this.velocity.set(0, 0, 0);
+          
+          // 延遲重新啟用look-controls
+          setTimeout(() => {
+            this.camEntity.setAttribute('look-controls', 'enabled', true);
+          }, 50);
+          
           this.updatePositionInfo();
         }
       }
