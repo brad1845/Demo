@@ -599,6 +599,20 @@
           currentCamera.quaternion.setFromEuler(this.defaultRotation);
           currentCamera.updateMatrix();
           currentCamera.updateMatrixWorld(true);
+
+   	  // 重置 FOV
+   	  if (!this.isOrtho) {
+            currentCamera.fov = 60;
+          } else {
+            // 重置正交尺寸
+            this.orthoSize = 5;  // <-- 預設正交尺寸
+            const aspect = window.innerWidth / window.innerHeight;
+            currentCamera.left = -this.orthoSize * aspect / 2;
+            currentCamera.right = this.orthoSize * aspect / 2;
+            currentCamera.top = this.orthoSize / 2;
+            currentCamera.bottom = -this.orthoSize / 2;
+          }
+  	  currentCamera.updateProjectionMatrix();
           
           // 同步A-Frame實體的狀態
           this.camEntity.object3D.position.copy(currentCamera.position);
@@ -635,6 +649,7 @@
             this.camEntity.setAttribute('look-controls', 'enabled', true);
           }, 50);
           
+	  this.updateCameraInfo();
           this.updatePositionInfo();
         }
       }
