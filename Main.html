@@ -168,7 +168,7 @@
 
   <a-scene id="mainScene" background="color: #0f0f23" fog="type: exponential; color: #0f0f23; density: 0.02">
     <a-entity id="cameraRig" position="0 1.6 3">
-      <a-camera id="cam" look-controls wasd-controls></a-camera>
+      <a-camera id="cam" look-controls wasd-controls="enabled: false"></a-camera>
     </a-entity>
     
     <!-- 創建一個更豐富的3D場景 -->
@@ -245,10 +245,10 @@
         
         // 移動控制
         this.keys = {};
-        this.moveSpeed = 0.22;
+        this.moveSpeed = 0.1; // 統一的移動速度
         this.smoothing = 0.1;
         this.velocity = new THREE.Vector3();
-        this.acceleration = 0.04;
+        this.acceleration = 0.02;
         this.friction = 0.9;
         
         // 滑鼠狀態
@@ -269,8 +269,29 @@
       
       init() {
         this.sceneEl.addEventListener("loaded", () => {
-          this.perspCam = this.camEntity.getObject3D("camera");
+          // 立即替換默認相機，確保從一開始就使用統一的相機系統
+          const aspect = window.innerWidth / window.innerHeight;
+          this.perspCam = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+          
+          // 設置初始位置和旋轉
+          this.perspCam.position.copy(this.defaultPosition);
+          this.perspCam.rotation.copy(this.defaultRotation);
+          this.perspCam.quaternion.setFromEuler(this.defaultRotation);
+          this.perspCam.updateMatrix();
+          this.perspCam.updateMatrixWorld(true);
+          this.perspCam.updateProjectionMatrix();
+          
+          // 同步A-Frame實體狀態
+          this.camEntity.object3D.position.copy(this.perspCam.position);
+          this.camEntity.object3D.rotation.copy(this.perspCam.rotation);
+          this.camEntity.object3D.quaternion.copy(this.perspCam.quaternion);
+          this.camEntity.object3D.updateMatrix();
+          this.camEntity.object3D.updateMatrixWorld(true);
+          
+          // 替換默認相機
+          this.camEntity.setObject3D("camera", this.perspCam);
           this.sceneEl.camera = this.perspCam;
+          
           this.updateCameraInfo();
           this.setupEventListeners();
           this.startPerformanceMonitoring();
@@ -409,14 +430,14 @@
         if (this.keys.left) targetVelocity.x -= 1;
         if (this.keys.right) targetVelocity.x += 1;
         
-        // 正規化移動向量
+        // 正規化移動向量並應用統一速度
         if (targetVelocity.length() > 0) {
           targetVelocity.normalize();
-          targetVelocity.multiplyScalar(this.acceleration);
+          targetVelocity.multiplyScalar(this.moveSpeed);
         }
         
-        // 平滑加速度
-        this.velocity.lerp(targetVelocity, 0.5);
+        // 平滑移動
+        this.velocity.lerp(targetVelocity, 0.3);
         
         // 應用摩擦力
         if (targetVelocity.length() === 0) {
@@ -428,11 +449,22 @@
           this.velocity.set(0, 0, 0);
         }
         
-        // 應用移動
+        // 應用移動到相機
         if (this.velocity.length() > 0) {
           const moveVector = this.velocity.clone();
+          // 使用相機的四元數來變換移動方向
           moveVector.applyQuaternion(currentCamera.quaternion);
+          
+          // 直接更新相機位置
           currentCamera.position.add(moveVector);
+          
+          // 同步A-Frame實體位置
+          this.camEntity.object3D.position.copy(currentCamera.position);
+          this.camEntity.setAttribute('position', {
+            x: currentCamera.position.x,
+            y: currentCamera.position.y,
+            z: currentCamera.position.z
+          });
         }
       }
       
@@ -482,25 +514,11 @@
       toggleCamera() {
         this.saveCameraState();
         
-        // 暫時禁用控制器以避免狀態衝突
-        this.camEntity.setAttribute('look-controls', 'enabled', false);
-        this.camEntity.setAttribute('wasd-controls', 'enabled', false);
-        
         if (!this.isOrtho) {
           this.switchToOrthographic();
         } else {
           this.switchToPerspective();
         }
-        
-        // 延遲重新啟用控制器，確保新相機完全初始化
-        setTimeout(() => {
-          this.camEntity.setAttribute('look-controls', 'enabled', true);
-          this.camEntity.setAttribute('wasd-controls', 'enabled', true);
-          
-          // 強制重新初始化控制器
-          this.camEntity.components['look-controls'].tick();
-          this.camEntity.components['wasd-controls'].tick();
-        }, 50);
         
         this.updateCameraInfo();
         this.updateVisualEffects();
