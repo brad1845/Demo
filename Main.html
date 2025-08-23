@@ -168,7 +168,7 @@
 
   <a-scene id="mainScene" background="color: #0f0f23" fog="type: exponential; color: #0f0f23; density: 0.02">
     <a-entity id="cameraRig" position="0 1.6 3">
-      <a-camera id="cam" look-controls wasd-controls></a-camera>
+      <a-camera id="cam" look-controls wasd-controls="enabled: false"></a-camera>
     </a-entity>
     
     <!-- 創建一個更豐富的3D場景 -->
@@ -245,11 +245,16 @@
         
         // 移動控制
         this.keys = {};
-        this.moveSpeed = 0.22;
+        this.moveSpeed = 0.1; // 統一的移動速度
         this.smoothing = 0.1;
         this.velocity = new THREE.Vector3();
-        this.acceleration = 0.04;
+        this.acceleration = 0.02;
         this.friction = 0.9;
+        
+        // 正交尺寸控制
+        this.targetOrthoSize = 5;
+        this.orthoSizeVelocity = 0;
+        this.orthoSizeSpeed = 0.15;
         
         // 滑鼠狀態
         this.isMouseDown = false;
@@ -269,8 +274,29 @@
       
       init() {
         this.sceneEl.addEventListener("loaded", () => {
-          this.perspCam = this.camEntity.getObject3D("camera");
+          // 立即替換默認相機，確保從一開始就使用統一的相機系統
+          const aspect = window.innerWidth / window.innerHeight;
+          this.perspCam = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+          
+          // 設置初始位置和旋轉
+          this.perspCam.position.copy(this.defaultPosition);
+          this.perspCam.rotation.copy(this.defaultRotation);
+          this.perspCam.quaternion.setFromEuler(this.defaultRotation);
+          this.perspCam.updateMatrix();
+          this.perspCam.updateMatrixWorld(true);
+          this.perspCam.updateProjectionMatrix();
+          
+          // 同步A-Frame實體狀態
+          this.camEntity.object3D.position.copy(this.perspCam.position);
+          this.camEntity.object3D.rotation.copy(this.perspCam.rotation);
+          this.camEntity.object3D.quaternion.copy(this.perspCam.quaternion);
+          this.camEntity.object3D.updateMatrix();
+          this.camEntity.object3D.updateMatrixWorld(true);
+          
+          // 替換默認相機
+          this.camEntity.setObject3D("camera", this.perspCam);
           this.sceneEl.camera = this.perspCam;
+          
           this.updateCameraInfo();
           this.setupEventListeners();
           this.startPerformanceMonitoring();
@@ -313,7 +339,7 @@
           case 'KeyW':
             if (this.isOrtho) {
               e.preventDefault();
-              this.adjustOrthoSize(0.9);
+              this.keys.orthoShrink = true;
             } else {
               this.keys.forward = true;
             }
@@ -321,7 +347,7 @@
           case 'KeyS':
             if (this.isOrtho) {
               e.preventDefault();
-              this.adjustOrthoSize(1.1);
+              this.keys.orthoGrow = true;
             } else {
               this.keys.backward = true;
             }
@@ -346,12 +372,16 @@
       handleKeyUp(e) {
         switch(e.code) {
           case 'KeyW':
-            if (!this.isOrtho) {
+            if (this.isOrtho) {
+              this.keys.orthoShrink = false;
+            } else {
               this.keys.forward = false;
             }
             break;
           case 'KeyS':
-            if (!this.isOrtho) {
+            if (this.isOrtho) {
+              this.keys.orthoGrow = false;
+            } else {
               this.keys.backward = false;
             }
             break;
@@ -391,6 +421,9 @@
         // 更新移動
         this.updateMovement();
         
+        // 更新正交尺寸（如果在正交模式）
+        this.updateOrthoSize();
+        
         // 更新性能信息
         this.updatePerformanceInfo();
         
@@ -409,14 +442,14 @@
         if (this.keys.left) targetVelocity.x -= 1;
         if (this.keys.right) targetVelocity.x += 1;
         
-        // 正規化移動向量
+        // 正規化移動向量並應用統一速度
         if (targetVelocity.length() > 0) {
           targetVelocity.normalize();
-          targetVelocity.multiplyScalar(this.acceleration);
+          targetVelocity.multiplyScalar(this.moveSpeed);
         }
         
-        // 平滑加速度
-        this.velocity.lerp(targetVelocity, 0.5);
+        // 平滑移動
+        this.velocity.lerp(targetVelocity, 0.3);
         
         // 應用摩擦力
         if (targetVelocity.length() === 0) {
@@ -428,11 +461,22 @@
           this.velocity.set(0, 0, 0);
         }
         
-        // 應用移動
+        // 應用移動到相機
         if (this.velocity.length() > 0) {
           const moveVector = this.velocity.clone();
+          // 使用相機的四元數來變換移動方向
           moveVector.applyQuaternion(currentCamera.quaternion);
+          
+          // 直接更新相機位置
           currentCamera.position.add(moveVector);
+          
+          // 同步A-Frame實體位置
+          this.camEntity.object3D.position.copy(currentCamera.position);
+          this.camEntity.setAttribute('position', {
+            x: currentCamera.position.x,
+            y: currentCamera.position.y,
+            z: currentCamera.position.z
+          });
         }
       }
       
@@ -482,25 +526,11 @@
       toggleCamera() {
         this.saveCameraState();
         
-        // 暫時禁用控制器以避免狀態衝突
-        this.camEntity.setAttribute('look-controls', 'enabled', false);
-        this.camEntity.setAttribute('wasd-controls', 'enabled', false);
-        
         if (!this.isOrtho) {
           this.switchToOrthographic();
         } else {
           this.switchToPerspective();
         }
-        
-        // 延遲重新啟用控制器，確保新相機完全初始化
-        setTimeout(() => {
-          this.camEntity.setAttribute('look-controls', 'enabled', true);
-          this.camEntity.setAttribute('wasd-controls', 'enabled', true);
-          
-          // 強制重新初始化控制器
-          this.camEntity.components['look-controls'].tick();
-          this.camEntity.components['wasd-controls'].tick();
-        }, 50);
         
         this.updateCameraInfo();
         this.updateVisualEffects();
@@ -525,6 +555,7 @@
         
         // 重置速度避免切換後的移動問題
         this.velocity.set(0, 0, 0);
+        this.orthoSizeVelocity = 0;
         
         this.label.textContent = "正交模式";
         this.isOrtho = true;
@@ -559,29 +590,90 @@
       resetCamera() {
         const currentCamera = this.camEntity.getObject3D("camera");
         if (currentCamera) {
+          // 暫時禁用look-controls以避免衝突
+          this.camEntity.setAttribute('look-controls', 'enabled', false);
+          
+          // 重置到初始位置和旋轉
           currentCamera.position.copy(this.defaultPosition);
           currentCamera.rotation.copy(this.defaultRotation);
           currentCamera.quaternion.setFromEuler(this.defaultRotation);
           currentCamera.updateMatrix();
           currentCamera.updateMatrixWorld(true);
+          
+          // 同步A-Frame實體的狀態
+          this.camEntity.object3D.position.copy(currentCamera.position);
+          this.camEntity.object3D.rotation.copy(currentCamera.rotation);
+          this.camEntity.object3D.quaternion.copy(currentCamera.quaternion);
+          this.camEntity.object3D.updateMatrix();
+          this.camEntity.object3D.updateMatrixWorld(true);
+          
+          // 同步到A-Frame的attribute系統
+          this.camEntity.setAttribute('position', {
+            x: this.defaultPosition.x,
+            y: this.defaultPosition.y,
+            z: this.defaultPosition.z
+          });
+          this.camEntity.setAttribute('rotation', {
+            x: THREE.MathUtils.radToDeg(this.defaultRotation.x),
+            y: THREE.MathUtils.radToDeg(this.defaultRotation.y),
+            z: THREE.MathUtils.radToDeg(this.defaultRotation.z)
+          });
+          
+          // 重置look-controls的內部狀態
+          const lookControls = this.camEntity.components['look-controls'];
+          if (lookControls) {
+            lookControls.pitchObject.rotation.x = 0;
+            lookControls.yawObject.rotation.y = 0;
+            lookControls.yawObject.position.copy(this.defaultPosition);
+          }
+          
+          // 重置速度
+          this.velocity.set(0, 0, 0);
+          
+          // 延遲重新啟用look-controls
+          setTimeout(() => {
+            this.camEntity.setAttribute('look-controls', 'enabled', true);
+          }, 50);
+          
           this.updatePositionInfo();
         }
       }
       
-      adjustOrthoSize(factor) {
+      updateOrthoSize() {
         if (!this.isOrtho || !this.orthoCam) return;
         
-        this.orthoSize *= factor;
-        this.orthoSize = Math.max(0.5, Math.min(50, this.orthoSize));
+        // 計算目標尺寸變化
+        let targetSizeChange = 0;
+        if (this.keys.orthoShrink) targetSizeChange -= this.orthoSizeSpeed;
+        if (this.keys.orthoGrow) targetSizeChange += this.orthoSizeSpeed;
         
-        const aspect = window.innerWidth / window.innerHeight;
-        this.orthoCam.left = -this.orthoSize * aspect / 2;
-        this.orthoCam.right = this.orthoSize * aspect / 2;
-        this.orthoCam.top = this.orthoSize / 2;
-        this.orthoCam.bottom = -this.orthoSize / 2;
-        this.orthoCam.updateProjectionMatrix();
+        // 平滑變化
+        this.orthoSizeVelocity = THREE.MathUtils.lerp(this.orthoSizeVelocity, targetSizeChange, 0.3);
         
-        this.updateCameraInfo();
+        // 應用摩擦力
+        if (targetSizeChange === 0) {
+          this.orthoSizeVelocity *= 0.9;
+        }
+        
+        // 如果變化很小就停止
+        if (Math.abs(this.orthoSizeVelocity) < 0.001) {
+          this.orthoSizeVelocity = 0;
+        }
+        
+        // 應用尺寸變化
+        if (this.orthoSizeVelocity !== 0) {
+          this.orthoSize += this.orthoSizeVelocity;
+          this.orthoSize = Math.max(0.5, Math.min(50, this.orthoSize));
+          
+          const aspect = window.innerWidth / window.innerHeight;
+          this.orthoCam.left = -this.orthoSize * aspect / 2;
+          this.orthoCam.right = this.orthoSize * aspect / 2;
+          this.orthoCam.top = this.orthoSize / 2;
+          this.orthoCam.bottom = -this.orthoSize / 2;
+          this.orthoCam.updateProjectionMatrix();
+          
+          this.updateCameraInfo();
+        }
       }
       
       updateCameraInfo() {
