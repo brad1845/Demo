@@ -451,19 +451,56 @@
           newCamera.position.copy(this.savedState.position);
           newCamera.rotation.copy(this.savedState.rotation);
           newCamera.quaternion.copy(this.savedState.quaternion);
+          
+          // 確保矩陣狀態完全同步
           newCamera.updateMatrix();
           newCamera.updateMatrixWorld(true);
+          newCamera.updateProjectionMatrix();
+          
+          // 同步A-Frame實體的變換狀態
+          const cameraEl = this.camEntity;
+          cameraEl.object3D.position.copy(newCamera.position);
+          cameraEl.object3D.rotation.copy(newCamera.rotation);
+          cameraEl.object3D.quaternion.copy(newCamera.quaternion);
+          cameraEl.object3D.updateMatrix();
+          cameraEl.object3D.updateMatrixWorld(true);
+          
+          // 同步到A-Frame的attribute系統
+          cameraEl.setAttribute('position', {
+            x: newCamera.position.x,
+            y: newCamera.position.y,
+            z: newCamera.position.z
+          });
+          cameraEl.setAttribute('rotation', {
+            x: THREE.MathUtils.radToDeg(newCamera.rotation.x),
+            y: THREE.MathUtils.radToDeg(newCamera.rotation.y),
+            z: THREE.MathUtils.radToDeg(newCamera.rotation.z)
+          });
         }
       }
       
       toggleCamera() {
         this.saveCameraState();
         
+        // 暫時禁用控制器以避免狀態衝突
+        this.camEntity.setAttribute('look-controls', 'enabled', false);
+        this.camEntity.setAttribute('wasd-controls', 'enabled', false);
+        
         if (!this.isOrtho) {
           this.switchToOrthographic();
         } else {
           this.switchToPerspective();
         }
+        
+        // 延遲重新啟用控制器，確保新相機完全初始化
+        setTimeout(() => {
+          this.camEntity.setAttribute('look-controls', 'enabled', true);
+          this.camEntity.setAttribute('wasd-controls', 'enabled', true);
+          
+          // 強制重新初始化控制器
+          this.camEntity.components['look-controls'].tick();
+          this.camEntity.components['wasd-controls'].tick();
+        }, 50);
         
         this.updateCameraInfo();
         this.updateVisualEffects();
