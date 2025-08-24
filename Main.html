@@ -231,16 +231,6 @@
     <a-plane position="0 5 -10" rotation="0 0 0" width="20" height="10" 
              color="#34495e" material="opacity: 0.7; transparent: true"></a-plane>
     
-    <!-- 網格幫助線 -->
-    <a-entity id="grid" visible="false">
-      <a-plane position="0 0.01 0" rotation="-90 0 0" width="20" height="20" 
-               material="color: #555; opacity: 0.3; transparent: true" wireframe="true"></a-plane>
-      <!-- 座標軸指示器 -->
-      <a-box position="1 0.05 0" width="2" height="0.1" depth="0.1" color="#ff0000"></a-box>
-      <a-box position="0 1 0" width="0.1" height="2" depth="0.1" color="#00ff00"></a-box>
-      <a-box position="0 0.05 1" width="0.1" height="0.1" depth="2" color="#0000ff"></a-box>
-    </a-entity>
-    
     <!-- 增強光源系統 -->
     <a-light type="ambient" color="#404040" intensity="0.3"></a-light>
     <a-light type="point" position="3 5 3" color="#ffffff" intensity="0.8" 
@@ -300,6 +290,8 @@
         this.frameCount = 0;
         this.lastTime = performance.now();
         this.fps = 0;
+        this.frameTimeBuffer = [];
+        this.bufferSize = 60; // 使用60帧来计算平均FPS
         
         // 默認相機位置
         this.defaultPosition = new THREE.Vector3(0, 1.6, 3);
@@ -309,7 +301,10 @@
         this.crosshairVisible = true;
         
         // 視覺匹配：基於視線方向的距離檢測
-        this.defaultOrthoSize = 5.0; // 默認正交尺寸
+        this.defaultOrthoSize = 21.9; // 默認正交尺寸
+        
+        // 当前视线距离缓存，用于保持视觉一致性
+        this.currentViewDistance = null;
         
         // 調試模式（設為 true 可在控制台看到詳細信息）
         this.debugMode = false;
@@ -699,8 +694,17 @@
       switchToOrthographic() {
         const aspect = window.innerWidth / window.innerHeight;
         
-        // 使用射線檢測計算正交尺寸
-        this.orthoSize = this.calculateOptimalOrthoSize();
+        // 基于当前透视相机的FOV和当前视线距离计算正交尺寸
+        const currentFov = this.perspCam ? this.perspCam.fov : this.savedPerspectiveFov || 60;
+        const currentDistance = this.getViewDirectionDistance(this.perspCam || this.camEntity.getObject3D("camera"));
+        
+        // 使用当前FOV和距离计算正交尺寸，保持视觉一致性
+        const fovRadians = THREE.MathUtils.degToRad(currentFov);
+        this.orthoSize = 2 * Math.tan(fovRadians / 2) * currentDistance;
+        this.orthoSize = Math.max(0.2, Math.min(80, this.orthoSize));
+        
+        // 保存当前的视线距离，用于后续的FOV计算
+        this.currentViewDistance = currentDistance;
         
         this.orthoCam = new THREE.OrthographicCamera(
           -this.orthoSize * aspect / 2, 
@@ -726,12 +730,26 @@
         // 確保新相機立即可用
         this.orthoCam.updateProjectionMatrix();
         this.orthoCam.updateMatrixWorld(true);
+        
+        if (this.debugMode) {
+          console.log(`切换到正交模式 - FOV: ${currentFov.toFixed(1)}°, 距离: ${currentDistance.toFixed(1)}, 正交尺寸: ${this.orthoSize.toFixed(1)}`);
+        }
       }
       
       switchToPerspective() {
         const aspect = window.innerWidth / window.innerHeight;
-        // 使用已保存的FOV值，確保與正交尺寸保持一致
-        const fov = this.savedPerspectiveFov || 60;
+        
+        // 基于当前正交尺寸和当前视线距离计算对应的FOV
+        const currentDistance = this.getViewDirectionDistance(this.orthoCam || this.camEntity.getObject3D("camera"));
+        
+        // 使用当前正交尺寸和距离计算对应的FOV，保持视觉一致性
+        const tanHalfFov = this.orthoSize / (2 * currentDistance);
+        const fovRadians = 2 * Math.atan(tanHalfFov);
+        const calculatedFov = THREE.MathUtils.radToDeg(fovRadians);
+        const fov = Math.max(10, Math.min(120, calculatedFov));
+        
+        // 更新保存的FOV值
+        this.savedPerspectiveFov = fov;
         
         this.perspCam = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
         
@@ -749,6 +767,10 @@
         // 確保新相機立即可用
         this.perspCam.updateProjectionMatrix();
         this.perspCam.updateMatrixWorld(true);
+        
+        if (this.debugMode) {
+          console.log(`切换到透视模式 - 正交尺寸: ${this.orthoSize.toFixed(1)}, 距离: ${currentDistance.toFixed(1)}, FOV: ${fov.toFixed(1)}°`);
+        }
       }
       
       resetCamera() {
@@ -855,9 +877,12 @@
           this.orthoCam.bottom = -this.orthoSize / 2;
           this.orthoCam.updateProjectionMatrix();
           
-          // 同步更新對應的透視FOV
-          const correspondingFov = this.calculateCorrespondingFov(this.orthoSize);
-          this.savedPerspectiveFov = correspondingFov;
+          // 基于当前距离计算对应的FOV，而不是固定距离
+          const currentDistance = this.getViewDirectionDistance(this.orthoCam);
+          const tanHalfFov = this.orthoSize / (2 * currentDistance);
+          const fovRadians = 2 * Math.atan(tanHalfFov);
+          const correspondingFov = THREE.MathUtils.radToDeg(fovRadians);
+          this.savedPerspectiveFov = Math.max(10, Math.min(120, correspondingFov));
           
           this.updateCameraInfo();
         }
@@ -918,22 +943,38 @@
       
       updateVisualEffects() {
         const grid = document.getElementById("grid");
-        grid.setAttribute("visible", this.isOrtho);
+        if (grid) {
+          grid.setAttribute("visible", this.isOrtho);
+        }
       }
       
       startPerformanceMonitoring() {
-        setInterval(() => {
-          const now = performance.now();
-          this.fps = Math.round(1000 / (now - this.lastTime));
-          this.lastTime = now;
-        }, 1000);
+        // FPS计算在animate循环中进行，这里不需要setInterval
+        this.lastTime = performance.now();
       }
       
       updatePerformanceInfo() {
-        if (this.frameCount % 30 === 0) {
+        // 每帧更新FPS计算
+        const currentTime = performance.now();
+        const deltaTime = currentTime - this.lastTime;
+        
+        // 将帧时间添加到缓冲区
+        this.frameTimeBuffer.push(deltaTime);
+        if (this.frameTimeBuffer.length > this.bufferSize) {
+          this.frameTimeBuffer.shift();
+        }
+        
+        // 每30帧更新一次显示（约0.5秒）
+        if (this.frameCount % 30 === 0 && this.frameTimeBuffer.length > 10) {
+          // 计算平均帧时间
+          const avgFrameTime = this.frameTimeBuffer.reduce((sum, time) => sum + time, 0) / this.frameTimeBuffer.length;
+          this.fps = Math.round(1000 / avgFrameTime);
+          
           const objectCount = this.sceneEl.querySelectorAll('a-entity, a-sphere, a-box, a-cylinder, a-torus, a-plane').length;
           this.performanceInfo.textContent = `FPS: ${this.fps} | 物件: ${objectCount}`;
         }
+        
+        this.lastTime = currentTime;
       }
       
       handleResize() {
