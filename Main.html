@@ -133,6 +133,38 @@
       font-family: 'Courier New', monospace;
       border: 1px solid rgba(0, 255, 136, 0.2);
     }
+    
+    .crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      pointer-events: none;
+      width: 24px;
+      height: 24px;
+    }
+    
+    .crosshair-circle {
+      width: 100%;
+      height: 100%;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
+      animation: crosshair-pulse 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes crosshair-pulse {
+      0% {
+        border-color: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.2), inset 0 0 8px rgba(255, 255, 255, 0.05);
+      }
+      100% {
+        border-color: rgba(255, 255, 255, 1);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.2);
+      }
+    }
   </style>
 </head>
 <body>
@@ -150,6 +182,11 @@
     FPS: -- | 物件: --
   </div>
   
+  <!-- 視線中心指示器 -->
+  <div class="crosshair" id="crosshair">
+    <div class="crosshair-circle"></div>
+  </div>
+  
   <div class="instructions">
     <h4>🎮 控制說明</h4>
     <div class="control-group">
@@ -162,7 +199,8 @@
     </div>
     <div class="control-group">
       <span class="key">WS</span> 調整正交尺寸 (正交模式)<br>
-      <span class="key">R</span> 重置相機位置
+      <span class="key">R</span> 重置相機位置<br>
+      <span class="key">C</span> 切換視線指示器
     </div>
   </div>
 
@@ -173,23 +211,17 @@
     
     <!-- 創建一個更豐富的3D場景 -->
     
-    <!-- 中央旋轉球體 -->
-    <a-sphere position="0 2 0" radius="0.8" color="#ff6b6b" 
-              material="metalness: 0.7; roughness: 0.3"
-              animation="property: rotation; to: 0 360 0; loop: true; dur: 4000"
-              animation__bounce="property: position; to: 0 3 0; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine"></a-sphere>
+    <!-- 右側靜態方塊（用於測試視覺匹配） -->
+    <a-box position="4 1.6 0" rotation="0 0 0" color="#e74c3c" 
+           material="metalness: 0.3; roughness: 0.6"></a-box>
     
-    <!-- 左側跳躍方塊 -->
-    <a-box position="-4 1 0" rotation="0 45 0" color="#4ecdc4" 
-           material="metalness: 0.5; roughness: 0.4"
-           animation="property: position; to: -4 3 0; dir: alternate; loop: true; dur: 2000; easing: easeInOutBounce"
-           animation__rotate="property: rotation; to: 360 45 360; loop: true; dur: 5000"></a-box>
+    <!-- 正前方靜態球體（主要測試目標） -->
+    <a-sphere position="0 1.6 -3" radius="0.5" color="#f39c12" 
+              material="metalness: 0.4; roughness: 0.5"></a-sphere>
     
-
-    <!-- 後方旋轉環 -->
-    <a-torus position="0 2 -5" color="#96ceb4" radius="1.5" radius-tubular="0.2"
-             material="metalness: 0.8; roughness: 0.1"
-             animation="property: rotation; to: 360 360 0; loop: true; dur: 6000"></a-torus>
+    <!-- 左前方靜態圓環 -->
+    <a-torus position="-2 1.6 -4" color="#9b59b6" radius="0.6" radius-tubular="0.15"
+             material="metalness: 0.6; roughness: 0.3"></a-torus>
     
     <!-- 地板和牆壁 -->
     <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20" 
@@ -230,6 +262,7 @@
         this.positionInfo = document.getElementById("positionInfo");
         this.rotationInfo = document.getElementById("rotationInfo");
         this.performanceInfo = document.getElementById("performanceInfo");
+        this.crosshair = document.getElementById("crosshair");
         
         this.isOrtho = false;
         this.orthoCam = null;
@@ -242,6 +275,9 @@
           rotation: new THREE.Euler(),
           quaternion: new THREE.Quaternion()
         };
+        
+        // 保存透視相機的FOV值
+        this.savedPerspectiveFov = 60;
         
         // 移動控制
         this.keys = {};
@@ -268,6 +304,15 @@
         // 默認相機位置
         this.defaultPosition = new THREE.Vector3(0, 1.6, 3);
         this.defaultRotation = new THREE.Euler(0, 0, 0);
+        
+        // 視線中心指示器狀態
+        this.crosshairVisible = true;
+        
+        // 視覺匹配：基於視線方向的距離檢測
+        this.defaultOrthoSize = 5.0; // 默認正交尺寸
+        
+        // 調試模式（設為 true 可在控制台看到詳細信息）
+        this.debugMode = false;
         
         this.init();
       }
@@ -335,6 +380,15 @@
           case 'KeyR':
             e.preventDefault();
             this.resetCamera();
+            break;
+          case 'KeyC':
+            e.preventDefault();
+            this.toggleCrosshair();
+            break;
+          case 'KeyG':
+            e.preventDefault();
+            this.debugMode = !this.debugMode;
+            console.log(`調試模式: ${this.debugMode ? '開啟' : '關閉'}`);
             break;
           case 'KeyW':
             if (this.isOrtho) {
@@ -410,6 +464,7 @@
           const newFov = Math.max(10, Math.min(120, currentFov + delta));
           
           this.perspCam.fov = newFov;
+          this.savedPerspectiveFov = newFov; // 同步保存FOV值
           this.perspCam.updateProjectionMatrix();
           this.updateCameraInfo();
         }
@@ -487,6 +542,11 @@
           this.savedState.position.copy(currentCamera.position);
           this.savedState.rotation.copy(currentCamera.rotation);
           this.savedState.quaternion.copy(currentCamera.quaternion);
+          
+          // 保存透視相機的FOV
+          if (currentCamera.isPerspectiveCamera) {
+            this.savedPerspectiveFov = currentCamera.fov;
+          }
         }
       }
       
@@ -523,6 +583,105 @@
         }
       }
       
+      // 簡化的射線檢測（專為室內場景優化）
+      getViewDirectionDistance(camera) {
+        const raycaster = new THREE.Raycaster();
+        const origin = new THREE.Vector3();
+        const direction = new THREE.Vector3(0, 0, -1);
+        
+        // 設置射線起點和方向
+        camera.getWorldPosition(origin);
+        direction.transformDirection(camera.matrixWorld);
+        raycaster.set(origin, direction);
+        
+        // 收集場景中的實體物體（排除輔助元素）
+        const meshes = [];
+        this.sceneEl.object3D.traverse((child) => {
+          if (child.isMesh && child.visible && child.geometry) {
+            // 簡單過濾：排除相機和網格輔助線
+            const parentEl = child.parent?.el;
+            if (parentEl?.id && ['grid', 'cameraRig', 'cam'].includes(parentEl.id)) {
+              return;
+            }
+            meshes.push(child);
+          }
+        });
+        
+        // 執行射線檢測
+        const intersects = raycaster.intersectObjects(meshes, false);
+        
+        if (intersects.length > 0) {
+          const distance = intersects[0].distance;
+          // 室內空間範圍：最近0.3米（牆壁），最遠30米（長走廊/大廳）
+          return Math.max(0.3, Math.min(30, distance));
+        }
+        
+        // 沒有命中時的默認距離（中等房間尺寸）
+        return 8.0;
+      }
+      
+      // 使用射線檢測的正交尺寸計算
+      calculateOptimalOrthoSize() {
+        const currentCamera = this.camEntity.getObject3D("camera");
+        if (!currentCamera) return 5.0;
+        
+        // 獲取當前FOV
+        let currentFov = 60;
+        if (!this.isOrtho && this.perspCam) {
+          currentFov = this.perspCam.fov;
+        } else if (this.savedPerspectiveFov) {
+          currentFov = this.savedPerspectiveFov;
+        }
+        
+        // 檢測視線方向的距離
+        const distance = this.getViewDirectionDistance(currentCamera);
+        
+        // 應用數學公式：s = 2 * tan(fov/2) * d
+        const fovRadians = THREE.MathUtils.degToRad(currentFov);
+        const orthoSize = 2 * Math.tan(fovRadians / 2) * distance;
+        
+        return Math.max(0.2, Math.min(80, orthoSize));
+      }
+      
+      // 反向計算FOV（當調整正交尺寸時）
+      calculateCorrespondingFov(orthoSize) {
+        const currentCamera = this.camEntity.getObject3D("camera");
+        if (!currentCamera) return 60;
+        
+        const distance = this.getViewDirectionDistance(currentCamera);
+        
+        // 從正交尺寸反推FOV
+        const tanHalfFov = orthoSize / (2 * distance);
+        const fovRadians = 2 * Math.atan(tanHalfFov);
+        const fovDegrees = THREE.MathUtils.radToDeg(fovRadians);
+        
+        return Math.max(10, Math.min(120, fovDegrees));
+      }
+      
+      // 切換視線中心指示器的顯示/隱藏
+      toggleCrosshair() {
+        this.crosshairVisible = !this.crosshairVisible;
+        this.crosshair.style.display = this.crosshairVisible ? 'block' : 'none';
+      }
+      
+      // 根據相機模式調整視線指示器樣式
+      updateCrosshairStyle() {
+        if (!this.crosshair) return;
+        
+        const circle = this.crosshair.querySelector('.crosshair-circle');
+        if (!circle) return;
+        
+        if (this.isOrtho) {
+          // 正交模式：更實心一點的樣式
+          circle.style.borderColor = 'rgba(0, 255, 136, 0.9)';
+          circle.style.boxShadow = '0 0 12px rgba(0, 255, 136, 0.4), inset 0 0 12px rgba(0, 255, 136, 0.15)';
+        } else {
+          // 透視模式：原始樣式
+          circle.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+          circle.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1)';
+        }
+      }
+      
       toggleCamera() {
         this.saveCameraState();
         
@@ -534,10 +693,14 @@
         
         this.updateCameraInfo();
         this.updateVisualEffects();
+        this.updateCrosshairStyle();
       }
       
       switchToOrthographic() {
         const aspect = window.innerWidth / window.innerHeight;
+        
+        // 使用射線檢測計算正交尺寸
+        this.orthoSize = this.calculateOptimalOrthoSize();
         
         this.orthoCam = new THREE.OrthographicCamera(
           -this.orthoSize * aspect / 2, 
@@ -567,7 +730,8 @@
       
       switchToPerspective() {
         const aspect = window.innerWidth / window.innerHeight;
-        const fov = this.perspCam ? this.perspCam.fov : 60;
+        // 使用已保存的FOV值，確保與正交尺寸保持一致
+        const fov = this.savedPerspectiveFov || 60;
         
         this.perspCam = new THREE.PerspectiveCamera(fov, aspect, 0.1, 1000);
         
@@ -600,19 +764,23 @@
           currentCamera.updateMatrix();
           currentCamera.updateMatrixWorld(true);
 
-   	  // 重置 FOV
-   	  if (!this.isOrtho) {
+          // 重置 FOV 和正交尺寸的對應關係
+          if (!this.isOrtho) {
             currentCamera.fov = 60;
+            this.savedPerspectiveFov = 60;
           } else {
             // 重置正交尺寸
-            this.orthoSize = 5;  // <-- 預設正交尺寸
+            this.orthoSize = this.defaultOrthoSize;
             const aspect = window.innerWidth / window.innerHeight;
             currentCamera.left = -this.orthoSize * aspect / 2;
             currentCamera.right = this.orthoSize * aspect / 2;
             currentCamera.top = this.orthoSize / 2;
             currentCamera.bottom = -this.orthoSize / 2;
+            
+            // 同步重置對應的透視FOV
+            this.savedPerspectiveFov = 60;
           }
-  	  currentCamera.updateProjectionMatrix();
+          currentCamera.updateProjectionMatrix();
           
           // 同步A-Frame實體的狀態
           this.camEntity.object3D.position.copy(currentCamera.position);
@@ -649,7 +817,7 @@
             this.camEntity.setAttribute('look-controls', 'enabled', true);
           }, 50);
           
-	  this.updateCameraInfo();
+          this.updateCameraInfo();
           this.updatePositionInfo();
         }
       }
@@ -687,15 +855,36 @@
           this.orthoCam.bottom = -this.orthoSize / 2;
           this.orthoCam.updateProjectionMatrix();
           
+          // 同步更新對應的透視FOV
+          const correspondingFov = this.calculateCorrespondingFov(this.orthoSize);
+          this.savedPerspectiveFov = correspondingFov;
+          
           this.updateCameraInfo();
         }
       }
       
       updateCameraInfo() {
         if (this.isOrtho) {
+          const currentCamera = this.camEntity.getObject3D("camera");
+          const detectedDistance = currentCamera ? this.getViewDirectionDistance(currentCamera) : 0;
+          const correspondingFov = this.calculateCorrespondingFov(this.orthoSize);
+          
           this.cameraInfo.textContent = `尺寸: ${this.orthoSize.toFixed(1)} | 正交投影`;
+          
+          // 調試信息
+          if (this.debugMode) {
+            console.log(`正交模式 - 尺寸: ${this.orthoSize.toFixed(1)}, 檢測距離: ${detectedDistance.toFixed(1)}, 對應FOV: ${correspondingFov.toFixed(1)}°`);
+          }
         } else if (this.perspCam) {
+          const detectedDistance = this.getViewDirectionDistance(this.perspCam);
+          const equivalentOrthoSize = this.calculateOptimalOrthoSize();
+          
           this.cameraInfo.textContent = `FOV: ${this.perspCam.fov.toFixed(0)}° | 透視投影`;
+          
+          // 調試信息  
+          if (this.debugMode) {
+            console.log(`透視模式 - FOV: ${this.perspCam.fov.toFixed(1)}°, 檢測距離: ${detectedDistance.toFixed(1)}, 等效正交尺寸: ${equivalentOrthoSize.toFixed(1)}`);
+          }
         }
       }
       
