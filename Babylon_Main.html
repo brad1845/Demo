@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Enhanced Camera Toggle with Babylon.js</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/6.33.1/babylon.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/6.33.1/babylonjs.loaders.min.js"></script>
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      overflow: hidden;
+      background: #0f0f23;
+    }
+    
+    #babylon-canvas {
+      width: 100%;
+      height: 100vh;
+      display: block;
+      outline: none;
+    }
+    
+    .camera-controls {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.9);
+      padding: 20px;
+      border-radius: 12px;
+      color: white;
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      min-width: 280px;
+    }
+    
+    .control-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .control-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .toggle-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 15px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .toggle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+    
+    .toggle-btn:active {
+      transform: translateY(0);
+    }
+    
+    .mode-label {
+      font-weight: bold;
+      font-size: 18px;
+      color: #00ff88;
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+    }
+    
+    .camera-info {
+      font-size: 13px;
+      color: #b0b0b0;
+      margin-top: 10px;
+      font-family: 'Courier New', monospace;
+      line-height: 1.4;
+    }
+    
+    .position-info {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .rotation-info {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .instructions {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.88);
+      padding: 18px;
+      border-radius: 10px;
+      color: white;
+      font-size: 13px;
+      max-width: 320px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+    
+    .instructions h4 {
+      margin: 0 0 12px 0;
+      color: #00ff88;
+      font-size: 16px;
+      text-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+    }
+    
+    .control-group {
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    
+    .key {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      font-size: 11px;
+    }
+    
+    .performance-info {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.85);
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: #00ff88;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      backdrop-filter: blur(8px);
+      text-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+    }
+    
+    .crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      pointer-events: none;
+      width: 28px;
+      height: 28px;
+    }
+    
+    .crosshair-circle {
+      width: 100%;
+      height: 100%;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.1);
+      animation: crosshair-pulse 2.5s ease-in-out infinite alternate;
+    }
+    
+    @keyframes crosshair-pulse {
+      0% {
+        border-color: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.2), inset 0 0 8px rgba(255, 255, 255, 0.05);
+        transform: scale(0.95);
+      }
+      100% {
+        border-color: rgba(255, 255, 255, 1);
+        box-shadow: 0 0 16px rgba(255, 255, 255, 0.5), inset 0 0 16px rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+      }
+    }
+    
+    .debug-info {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 999;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 6px;
+      color: #ffaa00;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      border: 1px solid rgba(255, 170, 0, 0.2);
+      display: none;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="babylon-canvas"></canvas>
+  
+  <div class="camera-controls">
+    <div class="control-row">
+      <button id="toggleBtn" class="toggle-btn">切換相機</button>
+      <span id="modeLabel" class="mode-label">透視模式</span>
+    </div>
+    <div id="cameraInfo" class="camera-info">FOV: 60° | 透視投影<br>距離檢測: 準備中...</div>
+    <div id="positionInfo" class="position-info">位置: (0.0, 1.6, 3.0)</div>
+    <div id="rotationInfo" class="rotation-info">旋轉: (0°, 0°, 0°)</div>
+  </div>
+  
+  <div class="performance-info" id="performanceInfo">
+    FPS: -- | 物件: -- | 引擎: Babylon.js
+  </div>
+  
+  <!-- 視線中心指示器 -->
+  <div class="crosshair" id="crosshair">
+    <div class="crosshair-circle"></div>
+  </div>
+  
+  <!-- 調試信息 -->
+  <div class="debug-info" id="debugInfo">
+    調試模式已開啟<br>
+    <span id="debugContent"></span>
+  </div>
+  
+  <div class="instructions">
+    <h4>🎮 控制說明</h4>
+    <div class="control-group">
+      <span class="key">滑鼠左鍵拖曳</span> 旋轉視角<br>
+      <span class="key">滑鼠右鍵拖曳</span> 平移相機
+    </div>
+    <div class="control-group">
+      <span class="key">WASD</span> / <span class="key">方向鍵</span> 移動相機<br>
+      <span class="key">滾輪</span> 縮放視角
+    </div>
+    <div class="control-group">
+      <span class="key">空白鍵</span> 切換相機模式<br>
+      <span class="key">WS</span> 調整正交尺寸 (正交模式)
+    </div>
+    <div class="control-group">
+      <span class="key">R</span> 重置相機位置<br>
+      <span class="key">C</span> 切換視線指示器<br>
+      <span class="key">G</span> 調試模式開關
+    </div>
+  </div>
+
+  <script>
+    class BabylonCameraController {
+      constructor() {
+        this.canvas = document.getElementById("babylon-canvas");
+        this.engine = null;
+        this.scene = null;
+        this.perspectiveCamera = null;
+        this.orthographicCamera = null;
+        this.currentCamera = null;
+        this.isOrtho = false;
+        
+        // UI 元素
+        this.label = document.getElementById("modeLabel");
+        this.toggleBtn = document.getElementById("toggleBtn");
+        this.cameraInfo = document.getElementById("cameraInfo");
+        this.positionInfo = document.getElementById("positionInfo");
+        this.rotationInfo = document.getElementById("rotationInfo");
+        this.performanceInfo = document.getElementById("performanceInfo");
+        this.crosshair = document.getElementById("crosshair");
+        this.debugInfo = document.getElementById("debugInfo");
+        this.debugContent = document.getElementById("debugContent");
+        
+        // 相機參數
+        this.defaultFov = Math.PI / 3; // 60 degrees in radians
+        this.savedPerspectiveFov = this.defaultFov;
+        this.orthoSize = 5;
+        this.defaultPosition = new BABYLON.Vector3(0, 1.6, 3);
+        this.defaultTarget = new BABYLON.Vector3(0, 1.6, 0);
+        
+        // 移動控制
+        this.keys = {};
+        this.moveSpeed = 0.1;
+        this.velocity = new BABYLON.Vector3(0, 0, 0);
+        
+        // 正交尺寸控制
+        this.orthoSizeVelocity = 0;
+        this.orthoSizeSpeed = 0.15;
+        
+        // 性能監控
+        this.frameCount = 0;
+        this.lastTime = performance.now();
+        this.fps = 0;
+        this.frameTimeBuffer = [];
+        this.bufferSize = 60;
+        
+        // 視線指示器
+        this.crosshairVisible = true;
+        
+        // 調試模式
+        this.debugMode = false;
+        
+        // 場景物體（用於射線檢測）
+        this.sceneObjects = [];
+        
+        this.init();
+      }
+      
+      async init() {
+        // 創建引擎和場景
+        this.engine = new BABYLON.Engine(this.canvas, true, {
+          adaptToDeviceRatio: true,
+          antialias: true,
+          stencil: true
+        });
+        
+        this.scene = new BABYLON.Scene(this.engine);
+        this.scene.clearColor = new BABYLON.Color3(0.06, 0.06, 0.14);
+        
+        // 創建相機
+        this.createCameras();
+        
+        // 創建場景內容
+        this.createScene();
+        
+        // 設置光照
+        this.setupLighting();
+        
+        // 設置事件監聽
+        this.setupEventListeners();
+        
+        // 開始渲染循環
+        this.startRenderLoop();
+        
+        // 初始化UI
+        this.updateCameraInfo();
+        
+        console.log("Babylon.js 相機系統初始化完成");
+      }
+      
+      createCameras() {
+        // 創建透視相機
+        this.perspectiveCamera = new BABYLON.UniversalCamera("perspectiveCamera", 
+          this.defaultPosition.clone(), this.scene);
+        this.perspectiveCamera.setTarget(this.defaultTarget);
+        this.perspectiveCamera.fov = this.defaultFov;
+        this.perspectiveCamera.minZ = 0.1;
+        this.perspectiveCamera.maxZ = 1000;
+        
+        // 設置相機控制
+        this.perspectiveCamera.attachControls(this.canvas);
+        this.perspectiveCamera.inputs.addMouseWheel();
+        
+        // 創建正交相機
+        const aspect = this.canvas.width / this.canvas.height;
+        this.orthographicCamera = new BABYLON.UniversalCamera("orthographicCamera", 
+          this.defaultPosition.clone(), this.scene);
+        this.orthographicCamera.setTarget(this.defaultTarget);
+        this.orthographicCamera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+        this.orthographicCamera.orthoLeft = -this.orthoSize * aspect / 2;
+        this.orthographicCamera.orthoRight = this.orthoSize * aspect / 2;
+        this.orthographicCamera.orthoTop = this.orthoSize / 2;
+        this.orthographicCamera.orthoBottom = -this.orthoSize / 2;
+        this.orthographicCamera.minZ = 0.1;
+        this.orthographicCamera.maxZ = 1000;
+        
+        // 設置當前相機
+        this.currentCamera = this.perspectiveCamera;
+        this.scene.activeCamera = this.currentCamera;
+      }
+      
+      createScene() {
+        // 創建地面
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+          width: 20, height: 20
+        }, this.scene);
+        const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", this.scene);
+        groundMaterial.diffuseColor = new BABYLON.Color3(0.17, 0.24, 0.31);
+        groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        ground.material = groundMaterial;
+        ground.receiveShadows = true;
+        this.sceneObjects.push(ground);
+        
+        // 創建測試物體 - 右側紅色方塊
+        const redBox = BABYLON.MeshBuilder.CreateBox("redBox", {size: 1}, this.scene);
+        redBox.position = new BABYLON.Vector3(4, 1.6, 0);
+        const redMaterial = new BABYLON.StandardMaterial("redMaterial", this.scene);
+        redMaterial.diffuseColor = new BABYLON.Color3(0.91, 0.30, 0.24);
+        redMaterial.specularColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+        redBox.material = redMaterial;
+        this.sceneObjects.push(redBox);
+        
+        // 創建測試物體 - 前方橙色球體
+        const orangeSphere = BABYLON.MeshBuilder.CreateSphere("orangeSphere", {diameter: 1}, this.scene);
+        orangeSphere.position = new BABYLON.Vector3(0, 1.6, -3);
+        const orangeMaterial = new BABYLON.StandardMaterial("orangeMaterial", this.scene);
+        orangeMaterial.diffuseColor = new BABYLON.Color3(0.95, 0.61, 0.07);
+        orangeMaterial.specularColor = new BABYLON.Color3(0.4, 0.4, 0.4);
+        orangeSphere.material = orangeMaterial;
+        this.sceneObjects.push(orangeSphere);
+        
+        // 創建測試物體 - 左前方紫色圓環
+        const purpleTorus = BABYLON.MeshBuilder.CreateTorus("purpleTorus", {
+          diameter: 1.2, thickness: 0.3
+        }, this.scene);
+        purpleTorus.position = new BABYLON.Vector3(-2, 1.6, -4);
+        const purpleMaterial = new BABYLON.StandardMaterial("purpleMaterial", this.scene);
+        purpleMaterial.diffuseColor = new BABYLON.Color3(0.61, 0.35, 0.71);
+        purpleMaterial.specularColor = new BABYLON.Color3(0.6, 0.3, 0.6);
+        purpleTorus.material = purpleMaterial;
+        this.sceneObjects.push(purpleTorus);
+        
+        // 創建背景牆
+        const backWall = BABYLON.MeshBuilder.CreatePlane("backWall", {
+          width: 20, height: 10
+        }, this.scene);
+        backWall.position = new BABYLON.Vector3(0, 5, -10);
+        const wallMaterial = new BABYLON.StandardMaterial("wallMaterial", this.scene);
+        wallMaterial.diffuseColor = new BABYLON.Color3(0.20, 0.29, 0.37);
+        wallMaterial.alpha = 0.7;
+        backWall.material = wallMaterial;
+        this.sceneObjects.push(backWall);
+        
+        // 添加一些裝飾性幾何體
+        for (let i = 0; i < 3; i++) {
+          const cylinder = BABYLON.MeshBuilder.CreateCylinder(`cylinder${i}`, {
+            height: 2, diameterTop: 0.3, diameterBottom: 0.5
+          }, this.scene);
+          cylinder.position = new BABYLON.Vector3(
+            (Math.random() - 0.5) * 10,
+            1,
+            (Math.random() - 0.5) * 10
+          );
+          const cylinderMaterial = new BABYLON.StandardMaterial(`cylinderMaterial${i}`, this.scene);
+          cylinderMaterial.diffuseColor = new BABYLON.Color3(
+            Math.random() * 0.5 + 0.5,
+            Math.random() * 0.5 + 0.5,
+            Math.random() * 0.5 + 0.5
+          );
+          cylinder.material = cylinderMaterial;
+          this.sceneObjects.push(cylinder);
+        }
+      }
+      
+      setupLighting() {
+        // 環境光
+        const ambientLight = new BABYLON.HemisphericLight("ambientLight", 
+          new BABYLON.Vector3(0, 1, 0), this.scene);
+        ambientLight.intensity = 0.3;
+        
+        // 主要點光源
+        const mainLight = new BABYLON.PointLight("mainLight", 
+          new BABYLON.Vector3(3, 5, 3), this.scene);
+        mainLight.intensity = 0.8;
+        mainLight.diffuse = new BABYLON.Color3(1, 1, 1);
+        
+        // 動畫光源
+        BABYLON.Animation.CreateAndStartAnimation("mainLightAnimation", mainLight, "position", 
+          30, 300, new BABYLON.Vector3(3, 5, 3), new BABYLON.Vector3(-3, 5, -3),
+          BABYLON.Animation.ANIMATIONLOOPMODE_YOYO);
+        
+        // 輔助彩色光源
+        const colorLight = new BABYLON.PointLight("colorLight", 
+          new BABYLON.Vector3(-3, 5, 3), this.scene);
+        colorLight.intensity = 0.6;
+        colorLight.diffuse = new BABYLON.Color3(1, 0.42, 0.42);
+        
+        // 方向光
+        const directionalLight = new BABYLON.DirectionalLight("directionalLight", 
+          new BABYLON.Vector3(0, -1, 0), this.scene);
+        directionalLight.intensity = 0.4;
+        directionalLight.diffuse = new BABYLON.Color3(0.53, 0.81, 0.92);
+      }
+      
+      setupEventListeners() {
+        // 按鈕事件
+        this.toggleBtn.addEventListener("click", () => this.toggleCamera());
+        
+        // 鍵盤事件
+        document.addEventListener("keydown", (e) => this.handleKeyDown(e));
+        document.addEventListener("keyup", (e) => this.handleKeyUp(e));
+        
+        // 視窗大小變化
+        window.addEventListener("resize", () => this.handleResize());
+        
+        // 定期更新UI信息
+        setInterval(() => {
+          this.updatePositionInfo();
+        }, 50);
+      }
+      
+      handleKeyDown(e) {
+        if (e.repeat) return;
+        
+        switch(e.code) {
+          case 'Space':
+            e.preventDefault();
+            this.toggleCamera();
+            break;
+          case 'KeyR':
+            e.preventDefault();
+            this.resetCamera();
+            break;
+          case 'KeyC':
+            e.preventDefault();
+            this.toggleCrosshair();
+            break;
+          case 'KeyG':
+            e.preventDefault();
+            this.toggleDebugMode();
+            break;
+          case 'KeyW':
+            if (this.isOrtho) {
+              e.preventDefault();
+              this.keys.orthoShrink = true;
+            } else {
+              this.keys.forward = true;
+            }
+            break;
+          case 'KeyS':
+            if (this.isOrtho) {
+              e.preventDefault();
+              this.keys.orthoGrow = true;
+            } else {
+              this.keys.backward = true;
+            }
+            break;
+          case 'ArrowUp':
+            this.keys.forward = true;
+            break;
+          case 'ArrowDown':
+            this.keys.backward = true;
+            break;
+          case 'KeyA':
+          case 'ArrowLeft':
+            this.keys.left = true;
+            break;
+          case 'KeyD':
+          case 'ArrowRight':
+            this.keys.right = true;
+            break;
+        }
+      }
+      
+      handleKeyUp(e) {
+        switch(e.code) {
+          case 'KeyW':
+            if (this.isOrtho) {
+              this.keys.orthoShrink = false;
+            } else {
+              this.keys.forward = false;
+            }
+            break;
+          case 'KeyS':
+            if (this.isOrtho) {
+              this.keys.orthoGrow = false;
+            } else {
+              this.keys.backward = false;
+            }
+            break;
+          case 'ArrowUp':
+            this.keys.forward = false;
+            break;
+          case 'ArrowDown':
+            this.keys.backward = false;
+            break;
+          case 'KeyA':
+          case 'ArrowLeft':
+            this.keys.left = false;
+            break;
+          case 'KeyD':
+          case 'ArrowRight':
+            this.keys.right = false;
+            break;
+        }
+      }
+      
+      toggleDebugMode() {
+        this.debugMode = !this.debugMode;
+        this.debugInfo.style.display = this.debugMode ? 'block' : 'none';
+        console.log(`調試模式: ${this.debugMode ? '開啟' : '關閉'}`);
+      }
+      
+      toggleCrosshair() {
+        this.crosshairVisible = !this.crosshairVisible;
+        this.crosshair.style.display = this.crosshairVisible ? 'block' : 'none';
+      }
+      
+      updateCrosshairStyle() {
+        if (!this.crosshair) return;
+        
+        const circle = this.crosshair.querySelector('.crosshair-circle');
+        if (!circle) return;
+        
+        if (this.isOrtho) {
+          circle.style.borderColor = 'rgba(0, 255, 136, 0.9)';
+          circle.style.boxShadow = '0 0 12px rgba(0, 255, 136, 0.4), inset 0 0 12px rgba(0, 255, 136, 0.15)';
+        } else {
+          circle.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+          circle.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1)';
+        }
+      }
+      
+      getViewDirectionDistance() {
+        const ray = new BABYLON.Ray(
+          this.currentCamera.position.clone(),
+          this.currentCamera.getDirection(BABYLON.Vector3.Forward())
+        );
+        
+        const hit = this.scene.pickWithRay(ray, (mesh) => {
+          return this.sceneObjects.includes(mesh);
+        });
+        
+        if (hit && hit.hit) {
+          const distance = hit.distance;
+          return Math.max(0.3, Math.min(30, distance));
+        }
+        
+        return 8.0; // 默認距離
+      }
+      
+      toggleCamera() {
+        const currentDistance = this.getViewDirectionDistance();
+        
+        if (!this.isOrtho) {
+          this.switchToOrthographic(currentDistance);
+        } else {
+          this.switchToPerspective(currentDistance);
+        }
+        
+        this.updateCameraInfo();
+        this.updateCrosshairStyle();
+      }
+      
+      switchToOrthographic(distance) {
+        // 保存透視相機狀態
+        const position = this.perspectiveCamera.position.clone();
+        const target = this.perspectiveCamera.getTarget().clone();
+        const currentFov = this.perspectiveCamera.fov;
+        
+        // 計算正交尺寸
+        this.orthoSize = 2 * Math.tan(currentFov / 2) * distance;
+        this.orthoSize = Math.max(0.2, Math.min(80, this.orthoSize));
+        
+        // 更新正交相機
+        this.orthographicCamera.position = position;
+        this.orthographicCamera.setTarget(target);
+        
+        const aspect = this.canvas.width / this.canvas.height;
+        this.orthographicCamera.orthoLeft = -this.orthoSize * aspect / 2;
+        this.orthographicCamera.orthoRight = this.orthoSize * aspect / 2;
+        this.orthographicCamera.orthoTop = this.orthoSize / 2;
+        this.orthographicCamera.orthoBottom = -this.orthoSize / 2;
+        
+        // 切換相機
+        this.perspectiveCamera.detachControls();
+        this.orthographicCamera.attachControls(this.canvas);
+        this.scene.activeCamera = this.orthographicCamera;
+        this.currentCamera = this.orthographicCamera;
+        
+        this.isOrtho = true;
+        this.label.textContent = "正交模式";
+        
+        if (this.debugMode) {
+          this.debugContent.innerHTML = `切換到正交<br>FOV: ${(currentFov * 180 / Math.PI).toFixed(1)}°<br>距離: ${distance.toFixed(1)}<br>尺寸: ${this.orthoSize.toFixed(1)}`;
+        }
+      }
+      
+      switchToPerspective(distance) {
+        // 保存正交相機狀態
+        const position = this.orthographicCamera.position.clone();
+        const target = this.orthographicCamera.getTarget().clone();
+        
+        // 計算FOV
+        const tanHalfFov = this.orthoSize / (2 * distance);
+        const fov = 2 * Math.atan(tanHalfFov);
+        this.savedPerspectiveFov = Math.max(Math.PI / 18, Math.min(2 * Math.PI / 3, fov));
+        
+        // 更新透視相機
+        this.perspectiveCamera.position = position;
+        this.perspectiveCamera.setTarget(target);
+        this.perspectiveCamera.fov = this.savedPerspectiveFov;
+        
+        // 切換相機
+        this.orthographicCamera.detachControls();
+        this.perspectiveCamera.attachControls(this.canvas);
+        this.scene.activeCamera = this.perspectiveCamera;
+        this.currentCamera = this.perspectiveCamera;
+        
+        this.isOrtho = false;
+        this.label.textContent = "透視模式";
+        
+        if (this.debugMode) {
+          this.debugContent.innerHTML = `切換到透視<br>尺寸: ${this.orthoSize.toFixed(1)}<br>距離: ${distance.toFixed(1)}<br>FOV: ${(this.savedPerspectiveFov * 180 / Math.PI).toFixed(1)}°`;
+        }
+      }
+      
+      resetCamera() {
+        // 重置到默認位置
+        this.currentCamera.position = this.defaultPosition.clone();
+        this.currentCamera.setTarget(this.defaultTarget);
+        
+        // 重置相機參數
+        if (this.isOrtho) {
+          this.orthoSize = 5.0;
+          const aspect = this.canvas.width / this.canvas.height;
+          this.orthographicCamera.orthoLeft = -this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoRight = this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoTop = this.orthoSize / 2;
+          this.orthographicCamera.orthoBottom = -this.orthoSize / 2;
+        } else {
+          this.perspectiveCamera.fov = this.defaultFov;
+          this.savedPerspectiveFov = this.defaultFov;
+        }
+        
+        // 重置速度
+        this.velocity.set(0, 0, 0);
+        this.orthoSizeVelocity = 0;
+        
+        this.updateCameraInfo();
+      }
+      
+      updateMovement() {
+        // 計算目標移動方向
+        const targetVelocity = new BABYLON.Vector3(0, 0, 0);
+        
+        if (this.keys.forward) targetVelocity.z -= 1;
+        if (this.keys.backward) targetVelocity.z += 1;
+        if (this.keys.left) targetVelocity.x -= 1;
+        if (this.keys.right) targetVelocity.x += 1;
+        
+        // 正規化移動向量
+        if (targetVelocity.length() > 0) {
+          targetVelocity.normalize();
+          targetVelocity.scaleInPlace(this.moveSpeed);
+        }
+        
+        // 平滑移動
+        this.velocity = BABYLON.Vector3.Lerp(this.velocity, targetVelocity, 0.3);
+        
+        // 應用摩擦力
+        if (targetVelocity.length() === 0) {
+          this.velocity.scaleInPlace(0.9);
+        }
+        
+        // 如果速度很小就停止
+        if (this.velocity.length() < 0.001) {
+          this.velocity.set(0, 0, 0);
+        }
+        
+        // 應用移動到相機
+        if (this.velocity.length() > 0) {
+          const moveVector = this.velocity.clone();
+          // 使用相機的變換矩陣來變換移動方向
+          const rotationMatrix = BABYLON.Matrix.RotationYawPitchRoll(
+            this.currentCamera.rotation.y,
+            this.currentCamera.rotation.x,
+            this.currentCamera.rotation.z
+          );
+          
+          const transformedMove = BABYLON.Vector3.TransformCoordinates(moveVector, rotationMatrix);
+          this.currentCamera.position.addInPlace(transformedMove);
+        }
+      }
+      
+      updateOrthoSize() {
+        if (!this.isOrtho) return;
+        
+        // 計算目標尺寸變化
+        let targetSizeChange = 0;
+        if (this.keys.orthoShrink) targetSizeChange -= this.orthoSizeSpeed;
+        if (this.keys.orthoGrow) targetSizeChange += this.orthoSizeSpeed;
+        
+        // 平滑變化
+        this.orthoSizeVelocity = BABYLON.Scalar.Lerp(this.orthoSizeVelocity, targetSizeChange, 0.3);
+        
+        // 應用摩擦力
+        if (targetSizeChange === 0) {
+          this.orthoSizeVelocity *= 0.9;
+        }
+        
+        // 如果變化很小就停止
+        if (Math.abs(this.orthoSizeVelocity) < 0.001) {
+          this.orthoSizeVelocity = 0;
+        }
+        
+        // 應用尺寸變化
+        if (this.orthoSizeVelocity !== 0) {
+          this.orthoSize += this.orthoSizeVelocity;
+          this.orthoSize = Math.max(0.5, Math.min(50, this.orthoSize));
+          
+          const aspect = this.canvas.width / this.canvas.height;
+          this.orthographicCamera.orthoLeft = -this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoRight = this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoTop = this.orthoSize / 2;
+          this.orthographicCamera.orthoBottom = -this.orthoSize / 2;
+          
+          // 基于当前距离计算对应的FOV
+          const currentDistance = this.getViewDirectionDistance();
+          const tanHalfFov = this.orthoSize / (2 * currentDistance);
+          const fov = 2 * Math.atan(tanHalfFov);
+          this.savedPerspectiveFov = Math.max(Math.PI / 18, Math.min(2 * Math.PI / 3, fov));
+          
+          this.updateCameraInfo();
+        }
+      }
+      
+      updateCameraInfo() {
+        const distance = this.getViewDirectionDistance();
+        
+        if (this.isOrtho) {
+          const correspondingFovDegrees = (this.savedPerspectiveFov * 180 / Math.PI).toFixed(0);
+          this.cameraInfo.innerHTML = `尺寸: ${this.orthoSize.toFixed(1)} | 正交投影<br>距離檢測: ${distance.toFixed(1)}m | 對應FOV: ${correspondingFovDegrees}°`;
+        } else {
+          const fovDegrees = (this.perspectiveCamera.fov * 180 / Math.PI).toFixed(0);
+          this.cameraInfo.innerHTML = `FOV: ${fovDegrees}° | 透視投影<br>距離檢測: ${distance.toFixed(1)}m`;
+        }
+      }
+      
+      updatePositionInfo() {
+        if (!this.currentCamera) return;
+        
+        const pos = this.currentCamera.position;
+        const rotation = this.currentCamera.rotation;
+        
+        this.positionInfo.textContent = 
+          `位置: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+        
+        this.rotationInfo.textContent = 
+          `旋轉: (${(rotation.x * 180 / Math.PI).toFixed(0)}°, ${(rotation.y * 180 / Math.PI).toFixed(0)}°, ${(rotation.z * 180 / Math.PI).toFixed(0)}°)`;
+      }
+      
+      updatePerformanceInfo() {
+        // 每帧更新FPS计算
+        const currentTime = performance.now();
+        const deltaTime = currentTime - this.lastTime;
+        
+        // 将帧时间添加到缓冲区
+        this.frameTimeBuffer.push(deltaTime);
+        if (this.frameTimeBuffer.length > this.bufferSize) {
+          this.frameTimeBuffer.shift();
+        }
+        
+        // 每30帧更新一次显示
+        if (this.frameCount % 30 === 0 && this.frameTimeBuffer.length > 10) {
+          const avgFrameTime = this.frameTimeBuffer.reduce((sum, time) => sum + time, 0) / this.frameTimeBuffer.length;
+          this.fps = Math.round(1000 / avgFrameTime);
+          
+          const objectCount = this.sceneObjects.length;
+          this.performanceInfo.textContent = `FPS: ${this.fps} | 物件: ${objectCount} | 引擎: Babylon.js`;
+        }
+        
+        this.lastTime = currentTime;
+        this.frameCount++;
+      }
+      
+      handleResize() {
+        this.engine.resize();
+        
+        // 更新正交相機的縱橫比
+        if (this.isOrtho) {
+          const aspect = this.canvas.width / this.canvas.height;
+          this.orthographicCamera.orthoLeft = -this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoRight = this.orthoSize * aspect / 2;
+          this.orthographicCamera.orthoTop = this.orthoSize / 2;
+          this.orthographicCamera.orthoBottom = -this.orthoSize / 2;
+        }
+      }
+      
+      startRenderLoop() {
+        this.engine.runRenderLoop(() => {
+          // 更新移動
+          this.updateMovement();
+          
+          // 更新正交尺寸
+          this.updateOrthoSize();
+          
+          // 更新性能信息
+          this.updatePerformanceInfo();
+          
+          // 渲染場景
+          this.scene.render();
+        });
+      }
+    }
+    
+    // 等待頁面加載完成後初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      new BabylonCameraController();
+    });
+    
+    // 處理頁面卸載
+    window.addEventListener('beforeunload', () => {
+      if (window.babylonController && window.babylonController.engine) {
+        window.babylonController.engine.dispose();
+      }
+    });
+  </script>
+</body>
+</html>
