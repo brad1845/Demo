@@ -1,0 +1,17 @@
+{
+  "name": "home3d",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babylonjs/core": "^8.24.0",
+    "@babylonjs/loaders": "^8.24.0",
+    "vite": "^7.1.3"
+  }
+}
